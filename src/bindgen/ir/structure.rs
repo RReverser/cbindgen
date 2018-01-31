@@ -30,14 +30,26 @@ pub struct Struct {
 }
 
 impl TraverseTypes for Struct {
-    fn traverse_types<F: Fn(&Type)>(&self, callback: &F) {
-        for &(_, ref ty, _) in &self.fields {
+    fn traverse_types<F: FnMut(&Type)>(&self, callback: &mut F) {
+        let mut fields = self.fields.iter();
+
+        if self.is_tagged {
+            fields.next();
+        }
+
+        for &(_, ref ty, _) in fields {
             ty.traverse_types(callback);
         }
     }
 
     fn traverse_types_mut<F: FnMut(&mut Type)>(&mut self, callback: &mut F) {
-        for &mut (_, ref mut ty, _) in &mut self.fields {
+        let mut fields = self.fields.iter_mut();
+
+        if self.is_tagged {
+            fields.next();
+        }
+
+        for &mut (_, ref mut ty, _) in fields {
             ty.traverse_types_mut(callback);
         }
     }
