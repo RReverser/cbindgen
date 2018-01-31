@@ -196,6 +196,16 @@ pub trait TraverseTypes {
             ty.add_dependencies_ignoring_generics(generic_params, library, out);
         });
     }
+
+    fn add_monomorphs(&self, library: &Library, out: &mut Monomorphs) {
+        self.traverse_types(&mut |ty| {
+            ty.add_monomorphs(library, out);
+        });
+    }
+
+    fn mangle_paths(&mut self, monomorphs: &Monomorphs) {
+        self.traverse_types_mut(&mut |ty| ty.mangle_paths(monomorphs));
+    }
 }
 
 impl TraverseTypes for Type {
@@ -267,6 +277,75 @@ impl TraverseTypes for Type {
                 ret.add_dependencies_ignoring_generics(generic_params, library, out);
                 for arg in args {
                     arg.add_dependencies_ignoring_generics(generic_params, library, out);
+                }
+            }
+        }
+    }
+
+    fn add_monomorphs(&self, library: &Library, out: &mut Monomorphs) {
+        match self {
+            &Type::ConstPtr(ref ty) => {
+                ty.add_monomorphs(library, out);
+            }
+            &Type::Ptr(ref ty) => {
+                ty.add_monomorphs(library, out);
+            }
+            &Type::Path(ref path) => {
+                if path.generics.len() == 0 || out.contains(&path) {
+                    return;
+                }
+
+                if let Some(items) = library.get_items(&path.name) {
+                    for item in items {
+                        item.instantiate_monomorph(&path.generics, library, out);
+                    }
+                }
+            }
+            &Type::Primitive(_) => {}
+            &Type::Array(ref ty, _) => {
+                ty.add_monomorphs(library, out);
+            }
+            &Type::FuncPtr(ref ret, ref args) => {
+                ret.add_monomorphs(library, out);
+                for arg in args {
+                    arg.add_monomorphs(library, out);
+                }
+            }
+        }
+    }
+
+    fn mangle_paths(&mut self, monomorphs: &Monomorphs) {
+        match self {
+            &mut Type::ConstPtr(ref mut ty) => {
+                ty.mangle_paths(monomorphs);
+            }
+            &mut Type::Ptr(ref mut ty) => {
+                ty.mangle_paths(monomorphs);
+            }
+            &mut Type::Path(ref mut path) => {
+                if path.generics.len() == 0 {
+                    return;
+                }
+
+                if let Some(mangled) = monomorphs.mangle_path(path) {
+                    path.name = mangled.clone();
+                    path.generics = Vec::new();
+                } else {
+                    error!(
+                        "Cannot find a mangling for generic path {:?}. This usually means that a \
+                         type referenced by this generic was incompatible or not found.",
+                        path
+                    );
+                }
+            }
+            &mut Type::Primitive(_) => {}
+            &mut Type::Array(ref mut ty, _) => {
+                ty.mangle_paths(monomorphs);
+            }
+            &mut Type::FuncPtr(ref mut ret, ref mut args) => {
+                ret.mangle_paths(monomorphs);
+                for arg in args {
+                    arg.mangle_paths(monomorphs);
                 }
             }
         }
@@ -460,38 +539,6 @@ impl Type {
         }
     }
 
-    pub fn add_monomorphs(&self, library: &Library, out: &mut Monomorphs) {
-        match self {
-            &Type::ConstPtr(ref ty) => {
-                ty.add_monomorphs(library, out);
-            }
-            &Type::Ptr(ref ty) => {
-                ty.add_monomorphs(library, out);
-            }
-            &Type::Path(ref path) => {
-                if path.generics.len() == 0 || out.contains(&path) {
-                    return;
-                }
-
-                if let Some(items) = library.get_items(&path.name) {
-                    for item in items {
-                        item.instantiate_monomorph(&path.generics, library, out);
-                    }
-                }
-            }
-            &Type::Primitive(_) => {}
-            &Type::Array(ref ty, _) => {
-                ty.add_monomorphs(library, out);
-            }
-            &Type::FuncPtr(ref ret, ref args) => {
-                ret.add_monomorphs(library, out);
-                for arg in args {
-                    arg.add_monomorphs(library, out);
-                }
-            }
-        }
-    }
-
     pub fn rename_for_config(&mut self, config: &Config) {
         match self {
             &mut Type::ConstPtr(ref mut ty) => {
@@ -514,43 +561,6 @@ impl Type {
                 ret.rename_for_config(config);
                 for arg in args {
                     arg.rename_for_config(config);
-                }
-            }
-        }
-    }
-
-    pub fn mangle_paths(&mut self, monomorphs: &Monomorphs) {
-        match self {
-            &mut Type::ConstPtr(ref mut ty) => {
-                ty.mangle_paths(monomorphs);
-            }
-            &mut Type::Ptr(ref mut ty) => {
-                ty.mangle_paths(monomorphs);
-            }
-            &mut Type::Path(ref mut path) => {
-                if path.generics.len() == 0 {
-                    return;
-                }
-
-                if let Some(mangled) = monomorphs.mangle_path(path) {
-                    path.name = mangled.clone();
-                    path.generics = Vec::new();
-                } else {
-                    error!(
-                        "Cannot find a mangling for generic path {:?}. This usually means that a \
-                         type referenced by this generic was incompatible or not found.",
-                        path
-                    );
-                }
-            }
-            &mut Type::Primitive(_) => {}
-            &mut Type::Array(ref mut ty, _) => {
-                ty.mangle_paths(monomorphs);
-            }
-            &mut Type::FuncPtr(ref mut ret, ref mut args) => {
-                ret.mangle_paths(monomorphs);
-                for arg in args {
-                    arg.mangle_paths(monomorphs);
                 }
             }
         }

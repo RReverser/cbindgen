@@ -315,18 +315,7 @@ impl Library {
         // Collect a list of monomorphs
         let mut monomorphs = Monomorphs::default();
 
-        self.structs.for_all_items(|x| {
-            x.add_monomorphs(self, &mut monomorphs);
-        });
-        self.unions.for_all_items(|x| {
-            x.add_monomorphs(self, &mut monomorphs);
-        });
-        self.typedefs.for_all_items(|x| {
-            x.add_monomorphs(self, &mut monomorphs);
-        });
-        for x in &self.functions {
-            x.add_monomorphs(self, &mut monomorphs);
-        }
+        self.add_monomorphs(self, &mut monomorphs);
 
         // Insert the monomorphs into self
         for monomorph in monomorphs.drain_structs() {
@@ -349,14 +338,6 @@ impl Library {
         self.typedefs.filter(|x| x.generic_params.len() > 0);
 
         // Mangle the paths that remain
-        self.unions
-            .for_all_items_mut(|x| x.mangle_paths(&monomorphs));
-        self.structs
-            .for_all_items_mut(|x| x.mangle_paths(&monomorphs));
-        self.typedefs
-            .for_all_items_mut(|x| x.mangle_paths(&monomorphs));
-        for x in &mut self.functions {
-            x.mangle_paths(&monomorphs);
-        }
+        self.mangle_paths(&monomorphs);
     }
 }

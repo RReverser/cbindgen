@@ -9,8 +9,6 @@ use syn;
 use bindgen::cdecl;
 use bindgen::config::{Config, Language, Layout};
 use bindgen::ir::{AnnotationSet, Cfg, CfgWrite, Documentation, PrimitiveType, TraverseTypes, Type};
-use bindgen::library::Library;
-use bindgen::monomorph::Monomorphs;
 use bindgen::rename::{IdentifierType, RenameRule};
 use bindgen::utilities::{find_first_some, IterHelpers};
 use bindgen::writer::{Source, SourceWriter};
@@ -71,20 +69,6 @@ impl Function {
             annotations: AnnotationSet::load(attrs)?,
             documentation: Documentation::load(attrs),
         })
-    }
-
-    pub fn add_monomorphs(&self, library: &Library, out: &mut Monomorphs) {
-        self.ret.add_monomorphs(library, out);
-        for &(_, ref ty) in &self.args {
-            ty.add_monomorphs(library, out);
-        }
-    }
-
-    pub fn mangle_paths(&mut self, monomorphs: &Monomorphs) {
-        self.ret.mangle_paths(monomorphs);
-        for &mut (_, ref mut ty) in &mut self.args {
-            ty.mangle_paths(monomorphs);
-        }
     }
 
     pub fn rename_for_config(&mut self, config: &Config) {

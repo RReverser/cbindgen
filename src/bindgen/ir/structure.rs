@@ -90,24 +90,6 @@ impl Struct {
             documentation: Documentation::load(&item.attrs),
         })
     }
-
-    pub fn add_monomorphs(&self, library: &Library, out: &mut Monomorphs) {
-        // Generic structs can instantiate monomorphs only once they've been
-        // instantiated. See `instantiate_monomorph` for more details.
-        if self.is_generic() {
-            return;
-        }
-
-        for &(_, ref ty, _) in &self.fields {
-            ty.add_monomorphs(library, out);
-        }
-    }
-
-    pub fn mangle_paths(&mut self, monomorphs: &Monomorphs) {
-        for &mut (_, ref mut ty, _) in &mut self.fields {
-            ty.mangle_paths(monomorphs);
-        }
-    }
 }
 
 impl Item for Struct {
