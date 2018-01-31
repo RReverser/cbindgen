@@ -237,118 +237,64 @@ impl TraverseTypes for Type {
         library: &Library,
         out: &mut Dependencies,
     ) {
-        match self {
-            &Type::ConstPtr(ref ty) => {
-                ty.add_dependencies_ignoring_generics(generic_params, library, out);
+        self.traverse_paths(&mut |path| {
+            for generic_value in &path.generics {
+                generic_value.add_dependencies_ignoring_generics(generic_params, library, out);
             }
-            &Type::Ptr(ref ty) => {
-                ty.add_dependencies_ignoring_generics(generic_params, library, out);
-            }
-            &Type::Path(ref path) => {
-                for generic_value in &path.generics {
-                    generic_value.add_dependencies_ignoring_generics(generic_params, library, out);
-                }
-                if !generic_params.contains(&path.name) {
-                    if let Some(items) = library.get_items(&path.name) {
-                        if !out.items.contains(&path.name) {
-                            out.items.insert(path.name.clone());
-
-                            for item in &items {
-                                item.add_dependencies(library, out);
-                            }
-                            for item in items {
-                                out.order.push(item);
-                            }
-                        }
-                    } else {
-                        warn!(
-                            "Can't find {}. This usually means that this type was incompatible or \
-                             not found.",
-                            path.name
-                        );
-                    }
-                }
-            }
-            &Type::Primitive(_) => {}
-            &Type::Array(ref ty, _) => {
-                ty.add_dependencies_ignoring_generics(generic_params, library, out);
-            }
-            &Type::FuncPtr(ref ret, ref args) => {
-                ret.add_dependencies_ignoring_generics(generic_params, library, out);
-                for arg in args {
-                    arg.add_dependencies_ignoring_generics(generic_params, library, out);
-                }
-            }
-        }
-    }
-
-    fn add_monomorphs(&self, library: &Library, out: &mut Monomorphs) {
-        match self {
-            &Type::ConstPtr(ref ty) => {
-                ty.add_monomorphs(library, out);
-            }
-            &Type::Ptr(ref ty) => {
-                ty.add_monomorphs(library, out);
-            }
-            &Type::Path(ref path) => {
-                if path.generics.len() == 0 || out.contains(&path) {
-                    return;
-                }
-
+            if !generic_params.contains(&path.name) {
                 if let Some(items) = library.get_items(&path.name) {
-                    for item in items {
-                        item.instantiate_monomorph(&path.generics, library, out);
+                    if !out.items.contains(&path.name) {
+                        out.items.insert(path.name.clone());
+
+                        for item in &items {
+                            item.add_dependencies(library, out);
+                        }
+                        for item in items {
+                            out.order.push(item);
+                        }
                     }
-                }
-            }
-            &Type::Primitive(_) => {}
-            &Type::Array(ref ty, _) => {
-                ty.add_monomorphs(library, out);
-            }
-            &Type::FuncPtr(ref ret, ref args) => {
-                ret.add_monomorphs(library, out);
-                for arg in args {
-                    arg.add_monomorphs(library, out);
-                }
-            }
-        }
-    }
-
-    fn mangle_paths(&mut self, monomorphs: &Monomorphs) {
-        match self {
-            &mut Type::ConstPtr(ref mut ty) => {
-                ty.mangle_paths(monomorphs);
-            }
-            &mut Type::Ptr(ref mut ty) => {
-                ty.mangle_paths(monomorphs);
-            }
-            &mut Type::Path(ref mut path) => {
-                if path.generics.len() == 0 {
-                    return;
-                }
-
-                if let Some(mangled) = monomorphs.mangle_path(path) {
-                    path.name = mangled.clone();
-                    path.generics = Vec::new();
                 } else {
-                    error!(
-                        "Cannot find a mangling for generic path {:?}. This usually means that a \
-                         type referenced by this generic was incompatible or not found.",
-                        path
+                    warn!(
+                        "Can't find {}. This usually means that this type was incompatible or \
+                         not found.",
+                        path.name
                     );
                 }
             }
-            &mut Type::Primitive(_) => {}
-            &mut Type::Array(ref mut ty, _) => {
-                ty.mangle_paths(monomorphs);
+        });
+    }
+
+    fn add_monomorphs(&self, library: &Library, out: &mut Monomorphs) {
+        self.traverse_paths(&mut |path| {
+            if path.generics.len() == 0 || out.contains(&path) {
+                return;
             }
-            &mut Type::FuncPtr(ref mut ret, ref mut args) => {
-                ret.mangle_paths(monomorphs);
-                for arg in args {
-                    arg.mangle_paths(monomorphs);
+
+            if let Some(items) = library.get_items(&path.name) {
+                for item in items {
+                    item.instantiate_monomorph(&path.generics, library, out);
                 }
             }
-        }
+        });
+    }
+
+    fn mangle_paths(&mut self, monomorphs: &Monomorphs) {
+        self.traverse_paths_mut(&mut |path| {
+            if path.generics.len() == 0 {
+                return;
+            }
+
+            if let Some(mangled) = monomorphs.mangle_path(path) {
+                path.name = mangled.clone();
+                path.generics = Vec::new();
+            } else {
+                error!(
+                    "Cannot find a mangling for generic path {:?}. This usually means that a \
+                     type referenced by this generic was incompatible or not found.",
+                    path
+                );
+            }
+        });
     }
 }
 
@@ -508,6 +454,38 @@ impl Type {
         }
     }
 
+    pub fn traverse_paths<F: FnMut(&GenericPath)>(&self, callback: &mut F) {
+        match *self {
+            Type::ConstPtr(ref ty) => ty.traverse_paths(callback),
+            Type::Ptr(ref ty) => ty.traverse_paths(callback),
+            Type::Path(ref path) => callback(path),
+            Type::Primitive(_) => {}
+            Type::Array(ref ty, _) => ty.traverse_paths(callback),
+            Type::FuncPtr(ref ret, ref args) => {
+                ret.traverse_paths(callback);
+                for arg in args {
+                    arg.traverse_paths(callback);
+                }
+            }
+        }
+    }
+
+    pub fn traverse_paths_mut<F: FnMut(&mut GenericPath)>(&mut self, callback: &mut F) {
+        match *self {
+            Type::ConstPtr(ref mut ty) => ty.traverse_paths_mut(callback),
+            Type::Ptr(ref mut ty) => ty.traverse_paths_mut(callback),
+            Type::Path(ref mut path) => callback(path),
+            Type::Primitive(_) => {}
+            Type::Array(ref mut ty, _) => ty.traverse_paths_mut(callback),
+            Type::FuncPtr(ref mut ret, ref mut args) => {
+                ret.traverse_paths_mut(callback);
+                for arg in args {
+                    arg.traverse_paths_mut(callback);
+                }
+            }
+        }
+    }
+
     pub fn specialize(&self, mappings: &Vec<(&String, &Type)>) -> Type {
         match self {
             &Type::ConstPtr(ref ty) => Type::ConstPtr(Box::new(ty.specialize(mappings))),
@@ -540,30 +518,12 @@ impl Type {
     }
 
     pub fn rename_for_config(&mut self, config: &Config) {
-        match self {
-            &mut Type::ConstPtr(ref mut ty) => {
-                ty.rename_for_config(config);
+        self.traverse_paths_mut(&mut |path| {
+            for generic in &mut path.generics {
+                generic.rename_for_config(config);
             }
-            &mut Type::Ptr(ref mut ty) => {
-                ty.rename_for_config(config);
-            }
-            &mut Type::Path(ref mut path) => {
-                for generic in &mut path.generics {
-                    generic.rename_for_config(config);
-                }
-                config.export.rename(&mut path.name);
-            }
-            &mut Type::Primitive(_) => {}
-            &mut Type::Array(ref mut ty, _) => {
-                ty.rename_for_config(config);
-            }
-            &mut Type::FuncPtr(ref mut ret, ref mut args) => {
-                ret.rename_for_config(config);
-                for arg in args {
-                    arg.rename_for_config(config);
-                }
-            }
-        }
+            config.export.rename(&mut path.name);
+        });
     }
 
     pub fn can_cmp_order(&self) -> bool {
