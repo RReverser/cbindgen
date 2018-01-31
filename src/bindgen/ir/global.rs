@@ -39,10 +39,6 @@ impl Static {
             documentation: Documentation::load(&item.attrs),
         })
     }
-
-    pub fn simplify_option_to_ptr(&mut self) {
-        self.ty.simplify_option_to_ptr();
-    }
 }
 
 impl TraverseTypes for Static {

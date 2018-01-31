@@ -305,24 +305,6 @@ impl Library {
         }
     }
 
-    fn simplify_option_to_ptr(&mut self) {
-        self.structs.for_all_items_mut(|x| {
-            x.simplify_option_to_ptr();
-        });
-        self.unions.for_all_items_mut(|x| {
-            x.simplify_option_to_ptr();
-        });
-        self.globals.for_all_items_mut(|x| {
-            x.simplify_option_to_ptr();
-        });
-        self.typedefs.for_all_items_mut(|x| {
-            x.simplify_option_to_ptr();
-        });
-        for x in &mut self.functions {
-            x.simplify_option_to_ptr();
-        }
-    }
-
     fn instantiate_monomorphs(&mut self) {
         // Collect a list of monomorphs
         let mut monomorphs = Monomorphs::default();

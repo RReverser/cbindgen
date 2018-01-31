@@ -179,6 +179,12 @@ pub trait TraverseTypes {
     fn traverse_types<F: Fn(&Type)>(&self, callback: &F);
 
     fn traverse_types_mut<F: FnMut(&mut Type)>(&mut self, callback: &mut F);
+
+    fn simplify_option_to_ptr(&mut self) {
+        self.traverse_types_mut(&mut |ty| {
+            ty.simplify_option_to_ptr();
+        });
+    }
 }
 
 impl TraverseTypes for Type {
@@ -188,6 +194,20 @@ impl TraverseTypes for Type {
 
     fn traverse_types_mut<F: FnMut(&mut Type)>(&mut self, callback: &mut F) {
         callback(self);
+    }
+
+    fn simplify_option_to_ptr(&mut self) {
+        let mut simplified = None;
+
+        if let &mut Type::Path(ref mut path) = self {
+            if path.name == "Option" && path.generics.len() == 1 && path.generics[0].is_repr_ptr() {
+                simplified = Some(path.generics.pop().unwrap());
+            }
+        }
+
+        if let Some(ty) = simplified {
+            *self = ty;
+        }
     }
 }
 
@@ -322,20 +342,6 @@ impl Type {
             &Type::ConstPtr(..) => true,
             &Type::FuncPtr(..) => true,
             _ => false,
-        }
-    }
-
-    pub fn simplify_option_to_ptr(&mut self) {
-        let mut simplified = None;
-
-        if let &mut Type::Path(ref mut path) = self {
-            if path.name == "Option" && path.generics.len() == 1 && path.generics[0].is_repr_ptr() {
-                simplified = Some(path.generics.pop().unwrap());
-            }
-        }
-
-        if let Some(ty) = simplified {
-            *self = ty;
         }
     }
 
