@@ -8,7 +8,6 @@ use syn;
 
 use bindgen::cdecl;
 use bindgen::config::{Config, Language, Layout};
-use bindgen::dependencies::Dependencies;
 use bindgen::ir::{AnnotationSet, Cfg, CfgWrite, Documentation, PrimitiveType, TraverseTypes, Type};
 use bindgen::library::Library;
 use bindgen::monomorph::Monomorphs;
@@ -28,7 +27,7 @@ pub struct Function {
 }
 
 impl TraverseTypes for Function {
-    fn traverse_types<F: Fn(&Type)>(&self, callback: &F) {
+    fn traverse_types<F: FnMut(&Type)>(&self, callback: &mut F) {
         self.ret.traverse_types(callback);
         for &(_, ref ty) in &self.args {
             ty.traverse_types(callback);
@@ -72,13 +71,6 @@ impl Function {
             annotations: AnnotationSet::load(attrs)?,
             documentation: Documentation::load(attrs),
         })
-    }
-
-    pub fn add_dependencies(&self, library: &Library, out: &mut Dependencies) {
-        self.ret.add_dependencies(library, out);
-        for &(_, ref ty) in &self.args {
-            ty.add_dependencies(library, out);
-        }
     }
 
     pub fn add_monomorphs(&self, library: &Library, out: &mut Monomorphs) {

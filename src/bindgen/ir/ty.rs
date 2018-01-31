@@ -10,7 +10,7 @@ use syn;
 use bindgen::cdecl;
 use bindgen::config::Config;
 use bindgen::dependencies::Dependencies;
-use bindgen::ir::{Documentation, GenericParams, GenericPath, Path};
+use bindgen::ir::{Documentation, GenericParams, GenericPath, Item, Path};
 use bindgen::library::Library;
 use bindgen::monomorph::Monomorphs;
 use bindgen::utilities::IterHelpers;
@@ -176,7 +176,7 @@ pub enum Type {
 }
 
 pub trait TraverseTypes {
-    fn traverse_types<F: Fn(&Type)>(&self, callback: &F);
+    fn traverse_types<F: FnMut(&Type)>(&self, callback: &mut F);
 
     fn traverse_types_mut<F: FnMut(&mut Type)>(&mut self, callback: &mut F);
 
@@ -185,10 +185,21 @@ pub trait TraverseTypes {
             ty.simplify_option_to_ptr();
         });
     }
+
+    fn add_dependencies_ignoring_generics(
+        &self,
+        generic_params: &GenericParams,
+        library: &Library,
+        out: &mut Dependencies,
+    ) {
+        self.traverse_types(&mut |ty| {
+            ty.add_dependencies_ignoring_generics(generic_params, library, out);
+        });
+    }
 }
 
 impl TraverseTypes for Type {
-    fn traverse_types<F: Fn(&Type)>(&self, callback: &F) {
+    fn traverse_types<F: FnMut(&Type)>(&self, callback: &mut F) {
         callback(self);
     }
 
@@ -207,6 +218,57 @@ impl TraverseTypes for Type {
 
         if let Some(ty) = simplified {
             *self = ty;
+        }
+    }
+
+    fn add_dependencies_ignoring_generics(
+        &self,
+        generic_params: &GenericParams,
+        library: &Library,
+        out: &mut Dependencies,
+    ) {
+        match self {
+            &Type::ConstPtr(ref ty) => {
+                ty.add_dependencies_ignoring_generics(generic_params, library, out);
+            }
+            &Type::Ptr(ref ty) => {
+                ty.add_dependencies_ignoring_generics(generic_params, library, out);
+            }
+            &Type::Path(ref path) => {
+                for generic_value in &path.generics {
+                    generic_value.add_dependencies_ignoring_generics(generic_params, library, out);
+                }
+                if !generic_params.contains(&path.name) {
+                    if let Some(items) = library.get_items(&path.name) {
+                        if !out.items.contains(&path.name) {
+                            out.items.insert(path.name.clone());
+
+                            for item in &items {
+                                item.add_dependencies(library, out);
+                            }
+                            for item in items {
+                                out.order.push(item);
+                            }
+                        }
+                    } else {
+                        warn!(
+                            "Can't find {}. This usually means that this type was incompatible or \
+                             not found.",
+                            path.name
+                        );
+                    }
+                }
+            }
+            &Type::Primitive(_) => {}
+            &Type::Array(ref ty, _) => {
+                ty.add_dependencies_ignoring_generics(generic_params, library, out);
+            }
+            &Type::FuncPtr(ref ret, ref args) => {
+                ret.add_dependencies_ignoring_generics(generic_params, library, out);
+                for arg in args {
+                    arg.add_dependencies_ignoring_generics(generic_params, library, out);
+                }
+            }
         }
     }
 }
@@ -398,61 +460,6 @@ impl Type {
         }
     }
 
-    pub fn add_dependencies_ignoring_generics(
-        &self,
-        generic_params: &GenericParams,
-        library: &Library,
-        out: &mut Dependencies,
-    ) {
-        match self {
-            &Type::ConstPtr(ref ty) => {
-                ty.add_dependencies_ignoring_generics(generic_params, library, out);
-            }
-            &Type::Ptr(ref ty) => {
-                ty.add_dependencies_ignoring_generics(generic_params, library, out);
-            }
-            &Type::Path(ref path) => {
-                for generic_value in &path.generics {
-                    generic_value.add_dependencies_ignoring_generics(generic_params, library, out);
-                }
-                if !generic_params.contains(&path.name) {
-                    if let Some(items) = library.get_items(&path.name) {
-                        if !out.items.contains(&path.name) {
-                            out.items.insert(path.name.clone());
-
-                            for item in &items {
-                                item.deref().add_dependencies(library, out);
-                            }
-                            for item in items {
-                                out.order.push(item);
-                            }
-                        }
-                    } else {
-                        warn!(
-                            "Can't find {}. This usually means that this type was incompatible or \
-                             not found.",
-                            path.name
-                        );
-                    }
-                }
-            }
-            &Type::Primitive(_) => {}
-            &Type::Array(ref ty, _) => {
-                ty.add_dependencies_ignoring_generics(generic_params, library, out);
-            }
-            &Type::FuncPtr(ref ret, ref args) => {
-                ret.add_dependencies_ignoring_generics(generic_params, library, out);
-                for arg in args {
-                    arg.add_dependencies_ignoring_generics(generic_params, library, out);
-                }
-            }
-        }
-    }
-
-    pub fn add_dependencies(&self, library: &Library, out: &mut Dependencies) {
-        self.add_dependencies_ignoring_generics(&GenericParams::default(), library, out)
-    }
-
     pub fn add_monomorphs(&self, library: &Library, out: &mut Monomorphs) {
         match self {
             &Type::ConstPtr(ref ty) => {
@@ -468,8 +475,7 @@ impl Type {
 
                 if let Some(items) = library.get_items(&path.name) {
                     for item in items {
-                        item.deref()
-                            .instantiate_monomorph(&path.generics, library, out);
+                        item.instantiate_monomorph(&path.generics, library, out);
                     }
                 }
             }

@@ -7,7 +7,6 @@ use std::io::Write;
 use syn;
 
 use bindgen::config::{Config, Language};
-use bindgen::dependencies::Dependencies;
 use bindgen::ir::{AnnotationSet, Cfg, CfgWrite, Documentation, GenericParams, Item, ItemContainer,
                   Path, TraverseTypes, Type};
 use bindgen::library::Library;
@@ -25,7 +24,7 @@ pub struct OpaqueItem {
 }
 
 impl TraverseTypes for OpaqueItem {
-    fn traverse_types<F: Fn(&Type)>(&self, _callback: &F) {}
+    fn traverse_types<F: FnMut(&Type)>(&self, _callback: &mut F) {}
 
     fn traverse_types_mut<F: FnMut(&mut Type)>(&mut self, _callback: &mut F) {}
 }
@@ -64,6 +63,10 @@ impl Item for OpaqueItem {
         &mut self.annotations
     }
 
+    fn generic_params(&self) -> &GenericParams {
+        &self.generic_params
+    }
+
     fn container(&self) -> ItemContainer {
         ItemContainer::OpaqueItem(self.clone())
     }
@@ -71,8 +74,6 @@ impl Item for OpaqueItem {
     fn rename_for_config(&mut self, config: &Config) {
         config.export.rename(&mut self.name);
     }
-
-    fn add_dependencies(&self, _: &Library, _: &mut Dependencies) {}
 
     fn instantiate_monomorph(
         &self,

@@ -7,7 +7,6 @@ use std::io::Write;
 use syn;
 
 use bindgen::config::{Config, Language};
-use bindgen::dependencies::Dependencies;
 use bindgen::ir::{AnnotationSet, Cfg, CfgWrite, Documentation, GenericParams, Item, ItemContainer,
                   Repr, TraverseTypes, Type};
 use bindgen::ir::SynFieldHelpers;
@@ -30,7 +29,7 @@ pub struct Union {
 }
 
 impl TraverseTypes for Union {
-    fn traverse_types<F: Fn(&Type)>(&self, callback: &F) {
+    fn traverse_types<F: FnMut(&Type)>(&self, callback: &mut F) {
         for &(_, ref ty, _) in &self.fields {
             ty.traverse_types(callback);
         }
@@ -68,10 +67,6 @@ impl Union {
         })
     }
 
-    pub fn is_generic(&self) -> bool {
-        self.generic_params.len() > 0
-    }
-
     pub fn add_monomorphs(&self, library: &Library, out: &mut Monomorphs) {
         // Generic unions can instantiate monomorphs only once they've been
         // instantiated. See `instantiate_monomorph` for more details.
@@ -106,6 +101,10 @@ impl Item for Union {
 
     fn annotations_mut(&mut self) -> &mut AnnotationSet {
         &mut self.annotations
+    }
+
+    fn generic_params(&self) -> &GenericParams {
+        &self.generic_params
     }
 
     fn container(&self) -> ItemContainer {
@@ -152,12 +151,6 @@ impl Item for Union {
             for &mut (ref mut name, ..) in &mut self.fields {
                 name.insert(0, '_');
             }
-        }
-    }
-
-    fn add_dependencies(&self, library: &Library, out: &mut Dependencies) {
-        for &(_, ref ty, _) in &self.fields {
-            ty.add_dependencies_ignoring_generics(&self.generic_params, library, out);
         }
     }
 

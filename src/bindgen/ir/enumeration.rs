@@ -7,8 +7,6 @@ use std::io::Write;
 use syn;
 
 use bindgen::config::{Config, Language};
-use bindgen::dependencies::Dependencies;
-use bindgen::library::Library;
 use bindgen::ir::{AnnotationSet, Cfg, CfgWrite, Documentation, GenericParams, GenericPath, Item,
                   ItemContainer, Repr, ReprStyle, ReprType, Struct, TraverseTypes, Type};
 use bindgen::rename::{IdentifierType, RenameRule};
@@ -24,7 +22,7 @@ pub struct EnumVariant {
 }
 
 impl TraverseTypes for EnumVariant {
-    fn traverse_types<F: Fn(&Type)>(&self, callback: &F) {
+    fn traverse_types<F: FnMut(&Type)>(&self, callback: &mut F) {
         if let Some((_, ref item)) = self.body {
             item.traverse_types(callback);
         }
@@ -127,12 +125,6 @@ impl EnumVariant {
             documentation: Documentation::load(&variant.attrs),
         })
     }
-
-    fn add_dependencies(&self, library: &Library, out: &mut Dependencies) {
-        if let &Some((_, ref item)) = &self.body {
-            item.add_dependencies(library, out);
-        }
-    }
 }
 
 impl Source for EnumVariant {
@@ -158,7 +150,7 @@ pub struct Enum {
 }
 
 impl TraverseTypes for Enum {
-    fn traverse_types<F: Fn(&Type)>(&self, callback: &F) {
+    fn traverse_types<F: FnMut(&Type)>(&self, callback: &mut F) {
         for variant in &self.variants {
             variant.traverse_types(callback);
         }
@@ -293,12 +285,6 @@ impl Item for Enum {
                     documentation: variant.documentation.clone(),
                 })
                 .collect();
-        }
-    }
-
-    fn add_dependencies(&self, library: &Library, out: &mut Dependencies) {
-        for variant in &self.variants {
-            variant.add_dependencies(library, out);
         }
     }
 }

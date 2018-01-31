@@ -3,26 +3,40 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 use std::collections::BTreeMap;
+use std::io::Write;
 use std::mem;
 
 use bindgen::config::Config;
 use bindgen::dependencies::Dependencies;
-use bindgen::ir::{AnnotationSet, Cfg, Constant, Enum, OpaqueItem, Static, Struct, Type, Typedef,
-                  Union};
+use bindgen::ir::{AnnotationSet, Cfg, Constant, Enum, GenericParams, OpaqueItem, Static, Struct,
+                  TraverseTypes, Type, Typedef, Union};
 use bindgen::library::Library;
 use bindgen::monomorph::Monomorphs;
+use bindgen::writer::{Source, SourceWriter};
 
 /// An item is any type of rust item besides a function
-pub trait Item {
+pub trait Item: Source + TraverseTypes {
     fn name(&self) -> &str;
     fn cfg(&self) -> &Option<Cfg>;
     fn annotations(&self) -> &AnnotationSet;
     fn annotations_mut(&mut self) -> &mut AnnotationSet;
 
+    fn generic_params(&self) -> &GenericParams {
+        &GenericParams(None)
+    }
+
+    fn is_generic(&self) -> bool {
+        !self.generic_params().is_empty()
+    }
+
     fn container(&self) -> ItemContainer;
 
     fn rename_for_config(&mut self, _config: &Config) {}
-    fn add_dependencies(&self, _library: &Library, _out: &mut Dependencies) {}
+
+    fn add_dependencies(&self, library: &Library, out: &mut Dependencies) {
+        self.add_dependencies_ignoring_generics(self.generic_params(), library, out);
+    }
+
     fn instantiate_monomorph(
         &self,
         _generics: &Vec<Type>,
@@ -44,17 +58,88 @@ pub enum ItemContainer {
     Typedef(Typedef),
 }
 
-impl ItemContainer {
-    pub fn deref(&self) -> &Item {
-        match self {
-            &ItemContainer::Constant(ref x) => x,
-            &ItemContainer::Static(ref x) => x,
-            &ItemContainer::OpaqueItem(ref x) => x,
-            &ItemContainer::Struct(ref x) => x,
-            &ItemContainer::Union(ref x) => x,
-            &ItemContainer::Enum(ref x) => x,
-            &ItemContainer::Typedef(ref x) => x,
+macro_rules! item_container_exec {
+    (@inner ($($mut:ident)*) $self:ident $name:ident $args:tt) => {
+        match *$self {
+            ItemContainer::Constant(ref $($mut)* x) => x.$name $args,
+            ItemContainer::Static(ref $($mut)* x) => x.$name $args,
+            ItemContainer::OpaqueItem(ref $($mut)* x) => x.$name $args,
+            ItemContainer::Struct(ref $($mut)* x) => x.$name $args,
+            ItemContainer::Union(ref $($mut)* x) => x.$name $args,
+            ItemContainer::Enum(ref $($mut)* x) => x.$name $args,
+            ItemContainer::Typedef(ref $($mut)* x) => x.$name $args,
         }
+    };
+
+    (mut $self:ident . $name:ident $args:tt) => {
+        item_container_exec!(@inner (mut) $self $name $args)
+    };
+
+    ($self:ident . $name:ident $args:tt) => {
+        item_container_exec!(@inner () $self $name $args)
+    };
+}
+
+impl TraverseTypes for ItemContainer {
+    fn traverse_types<F: FnMut(&Type)>(&self, callback: &mut F) {
+        item_container_exec!(self.traverse_types(callback))
+    }
+
+    fn traverse_types_mut<F: FnMut(&mut Type)>(&mut self, callback: &mut F) {
+        item_container_exec!(mut self.traverse_types_mut(callback))
+    }
+
+    fn simplify_option_to_ptr(&mut self) {
+        item_container_exec!(mut self.simplify_option_to_ptr())
+    }
+
+    fn add_dependencies_ignoring_generics(
+        &self,
+        generic_params: &GenericParams,
+        library: &Library,
+        out: &mut Dependencies,
+    ) {
+        item_container_exec!(self.add_dependencies_ignoring_generics(generic_params, library, out))
+    }
+}
+
+impl Source for ItemContainer {
+    fn write<F: Write>(&self, config: &Config, writer: &mut SourceWriter<F>) {
+        item_container_exec!(self.write(config, writer))
+    }
+}
+
+impl Item for ItemContainer {
+    fn name(&self) -> &str {
+        item_container_exec!(self.name())
+    }
+
+    fn cfg(&self) -> &Option<Cfg> {
+        item_container_exec!(self.cfg())
+    }
+
+    fn annotations(&self) -> &AnnotationSet {
+        item_container_exec!(self.annotations())
+    }
+
+    fn annotations_mut(&mut self) -> &mut AnnotationSet {
+        item_container_exec!(mut self.annotations_mut())
+    }
+
+    fn generic_params(&self) -> &GenericParams {
+        item_container_exec!(self.generic_params())
+    }
+
+    fn container(&self) -> ItemContainer {
+        item_container_exec!(self.container())
+    }
+
+    fn rename_for_config(&mut self, config: &Config) {
+        item_container_exec!(mut self.rename_for_config(config))
+    }
+
+    fn instantiate_monomorph(&self, generics: &Vec<Type>, library: &Library, out: &mut Monomorphs) {
+        item_container_exec!(self.instantiate_monomorph(generics, library, out))
     }
 }
 

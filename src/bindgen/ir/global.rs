@@ -7,9 +7,7 @@ use std::io::Write;
 use syn;
 
 use bindgen::config::Config;
-use bindgen::dependencies::Dependencies;
 use bindgen::ir::{AnnotationSet, Cfg, Documentation, Item, ItemContainer, TraverseTypes, Type};
-use bindgen::library::Library;
 use bindgen::writer::{Source, SourceWriter};
 
 #[derive(Debug, Clone)]
@@ -42,7 +40,7 @@ impl Static {
 }
 
 impl TraverseTypes for Static {
-    fn traverse_types<F: Fn(&Type)>(&self, callback: &F) {
+    fn traverse_types<F: FnMut(&Type)>(&self, callback: &mut F) {
         self.ty.traverse_types(callback);
     }
 
@@ -74,10 +72,6 @@ impl Item for Static {
 
     fn rename_for_config(&mut self, config: &Config) {
         self.ty.rename_for_config(config);
-    }
-
-    fn add_dependencies(&self, library: &Library, out: &mut Dependencies) {
-        self.ty.add_dependencies(library, out);
     }
 }
 

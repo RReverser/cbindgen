@@ -7,7 +7,6 @@ use std::io::Write;
 use syn;
 
 use bindgen::config::{Config, Language};
-use bindgen::dependencies::Dependencies;
 use bindgen::ir::{AnnotationSet, Cfg, CfgWrite, Documentation, GenericParams, Item, ItemContainer,
                   Repr, TraverseTypes, Type};
 use bindgen::library::Library;
@@ -92,10 +91,6 @@ impl Struct {
         })
     }
 
-    pub fn is_generic(&self) -> bool {
-        self.generic_params.len() > 0
-    }
-
     pub fn add_monomorphs(&self, library: &Library, out: &mut Monomorphs) {
         // Generic structs can instantiate monomorphs only once they've been
         // instantiated. See `instantiate_monomorph` for more details.
@@ -130,6 +125,10 @@ impl Item for Struct {
 
     fn annotations_mut(&mut self) -> &mut AnnotationSet {
         &mut self.annotations
+    }
+
+    fn generic_params(&self) -> &GenericParams {
+        &self.generic_params
     }
 
     fn container(&self) -> ItemContainer {
@@ -168,19 +167,6 @@ impl Item for Struct {
             for name in names {
                 name.insert(0, '_');
             }
-        }
-    }
-
-    fn add_dependencies(&self, library: &Library, out: &mut Dependencies) {
-        let mut fields = self.fields.iter();
-
-        // If there is a tag field, skip it
-        if self.is_tagged {
-            fields.next();
-        }
-
-        for &(_, ref ty, _) in fields {
-            ty.add_dependencies_ignoring_generics(&self.generic_params, library, out);
         }
     }
 

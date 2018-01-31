@@ -9,7 +9,7 @@ use bindgen::bindings::Bindings;
 use bindgen::config::{Config, Language};
 use bindgen::dependencies::Dependencies;
 use bindgen::error::Error;
-use bindgen::ir::{Constant, Enum, Function, Item, ItemContainer, ItemMap};
+use bindgen::ir::{Constant, Enum, Function, GenericParams, Item, ItemContainer, ItemMap};
 use bindgen::ir::{OpaqueItem, Path, Static, Struct, Typedef, Union};
 use bindgen::ir::{TraverseTypes, Type};
 use bindgen::monomorph::Monomorphs;
@@ -28,7 +28,7 @@ pub struct Library {
 }
 
 impl TraverseTypes for Library {
-    fn traverse_types<F: Fn(&Type)>(&self, callback: &F) {
+    fn traverse_types<F: FnMut(&Type)>(&self, callback: &mut F) {
         self.structs.for_all_items(|x| {
             x.traverse_types(callback);
         });
@@ -104,18 +104,24 @@ impl Library {
         let mut dependencies = Dependencies::new();
 
         for function in &self.functions {
-            function.add_dependencies(&self, &mut dependencies);
+            function.add_dependencies_ignoring_generics(
+                &GenericParams::default(),
+                &self,
+                &mut dependencies,
+            );
         }
+
         self.globals.for_all_items(|global| {
             global.add_dependencies(&self, &mut dependencies);
         });
+
         for name in &self.config.export.include {
             if let Some(items) = self.get_items(name) {
                 if !dependencies.items.contains(name) {
                     dependencies.items.insert(name.clone());
 
                     for item in &items {
-                        item.deref().add_dependencies(&self, &mut dependencies);
+                        item.add_dependencies(&self, &mut dependencies);
                     }
                     for item in items {
                         dependencies.order.push(item);

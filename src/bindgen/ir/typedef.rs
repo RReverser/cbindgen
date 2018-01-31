@@ -8,7 +8,6 @@ use std::io::Write;
 use syn;
 
 use bindgen::config::{Config, Language};
-use bindgen::dependencies::Dependencies;
 use bindgen::ir::{AnnotationSet, Cfg, CfgWrite, Documentation, GenericParams, Item, ItemContainer,
                   Path, TraverseTypes, Type};
 use bindgen::library::Library;
@@ -28,7 +27,7 @@ pub struct Typedef {
 }
 
 impl TraverseTypes for Typedef {
-    fn traverse_types<F: Fn(&Type)>(&self, callback: &F) {
+    fn traverse_types<F: FnMut(&Type)>(&self, callback: &mut F) {
         self.aliased.traverse_types(callback);
     }
 
@@ -75,10 +74,6 @@ impl Typedef {
         }
     }
 
-    pub fn is_generic(&self) -> bool {
-        self.generic_params.len() > 0
-    }
-
     pub fn add_monomorphs(&self, library: &Library, out: &mut Monomorphs) {
         // Generic structs can instantiate monomorphs only once they've been
         // instantiated. See `instantiate_monomorph` for more details.
@@ -111,6 +106,10 @@ impl Item for Typedef {
         &mut self.annotations
     }
 
+    fn generic_params(&self) -> &GenericParams {
+        &self.generic_params
+    }
+
     fn container(&self) -> ItemContainer {
         ItemContainer::Typedef(self.clone())
     }
@@ -118,11 +117,6 @@ impl Item for Typedef {
     fn rename_for_config(&mut self, config: &Config) {
         config.export.rename(&mut self.name);
         self.aliased.rename_for_config(config);
-    }
-
-    fn add_dependencies(&self, library: &Library, out: &mut Dependencies) {
-        self.aliased
-            .add_dependencies_ignoring_generics(&self.generic_params, library, out);
     }
 
     fn instantiate_monomorph(

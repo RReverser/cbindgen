@@ -8,7 +8,7 @@ use std::mem;
 use syn;
 
 use bindgen::config::{Config, Language};
-use bindgen::ir::{AnnotationSet, Cfg, Documentation, Item, ItemContainer, Type};
+use bindgen::ir::{AnnotationSet, Cfg, Documentation, Item, ItemContainer, TraverseTypes, Type};
 use bindgen::writer::{Source, SourceWriter};
 
 #[derive(Debug, Clone)]
@@ -73,6 +73,16 @@ pub struct Constant {
     pub cfg: Option<Cfg>,
     pub annotations: AnnotationSet,
     pub documentation: Documentation,
+}
+
+impl TraverseTypes for Constant {
+    fn traverse_types<F: FnMut(&Type)>(&self, callback: &mut F) {
+        self.ty.traverse_types(callback);
+    }
+
+    fn traverse_types_mut<F: FnMut(&mut Type)>(&mut self, callback: &mut F) {
+        self.ty.traverse_types_mut(callback);
+    }
 }
 
 impl Constant {

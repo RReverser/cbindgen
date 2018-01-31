@@ -8,7 +8,7 @@ use std::path;
 use std::fs;
 
 use bindgen::config::{Config, Language};
-use bindgen::ir::{Constant, Function, ItemContainer, Static};
+use bindgen::ir::{Constant, Function, Item, ItemContainer, Static};
 use bindgen::writer::{Source, SourceWriter};
 
 /// A bindings header that can be written.
@@ -111,24 +111,12 @@ impl Bindings {
         }
 
         for item in &self.items {
-            if item.deref()
-                .annotations()
-                .bool("no-export")
-                .unwrap_or(false)
-            {
+            if item.annotations().bool("no-export").unwrap_or(false) {
                 continue;
             }
 
             out.new_line_if_not_start();
-            match item {
-                &ItemContainer::Constant(..) => unreachable!(),
-                &ItemContainer::Static(..) => unreachable!(),
-                &ItemContainer::Enum(ref x) => x.write(&self.config, &mut out),
-                &ItemContainer::Struct(ref x) => x.write(&self.config, &mut out),
-                &ItemContainer::Union(ref x) => x.write(&self.config, &mut out),
-                &ItemContainer::OpaqueItem(ref x) => x.write(&self.config, &mut out),
-                &ItemContainer::Typedef(ref x) => x.write(&self.config, &mut out),
-            }
+            item.write(&self.config, &mut out);
             out.new_line();
         }
 
