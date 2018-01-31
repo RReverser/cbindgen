@@ -175,6 +175,22 @@ pub enum Type {
     FuncPtr(Box<Type>, Vec<Type>),
 }
 
+pub trait TraverseTypes {
+    fn traverse_types<F: Fn(&Type)>(&self, callback: &F);
+
+    fn traverse_types_mut<F: FnMut(&mut Type)>(&mut self, callback: &mut F);
+}
+
+impl TraverseTypes for Type {
+    fn traverse_types<F: Fn(&Type)>(&self, callback: &F) {
+        callback(self);
+    }
+
+    fn traverse_types_mut<F: FnMut(&mut Type)>(&mut self, callback: &mut F) {
+        callback(self);
+    }
+}
+
 impl Type {
     pub fn load(ty: &syn::Type) -> Result<Option<Type>, String> {
         let converted = match ty {

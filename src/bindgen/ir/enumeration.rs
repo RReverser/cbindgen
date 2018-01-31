@@ -10,7 +10,7 @@ use bindgen::config::{Config, Language};
 use bindgen::dependencies::Dependencies;
 use bindgen::library::Library;
 use bindgen::ir::{AnnotationSet, Cfg, CfgWrite, Documentation, GenericParams, GenericPath, Item,
-                  ItemContainer, Repr, ReprStyle, ReprType, Struct, Type};
+                  ItemContainer, Repr, ReprStyle, ReprType, Struct, TraverseTypes, Type};
 use bindgen::rename::{IdentifierType, RenameRule};
 use bindgen::utilities::find_first_some;
 use bindgen::writer::{Source, SourceWriter};
@@ -21,6 +21,20 @@ pub struct EnumVariant {
     pub discriminant: Option<u64>,
     pub body: Option<(String, Struct)>,
     pub documentation: Documentation,
+}
+
+impl TraverseTypes for EnumVariant {
+    fn traverse_types<F: Fn(&Type)>(&self, callback: &F) {
+        if let Some((_, ref item)) = self.body {
+            item.traverse_types(callback);
+        }
+    }
+
+    fn traverse_types_mut<F: FnMut(&mut Type)>(&mut self, callback: &mut F) {
+        if let Some((_, ref mut item)) = self.body {
+            item.traverse_types_mut(callback);
+        }
+    }
 }
 
 impl EnumVariant {
@@ -141,6 +155,20 @@ pub struct Enum {
     pub cfg: Option<Cfg>,
     pub annotations: AnnotationSet,
     pub documentation: Documentation,
+}
+
+impl TraverseTypes for Enum {
+    fn traverse_types<F: Fn(&Type)>(&self, callback: &F) {
+        for variant in &self.variants {
+            variant.traverse_types(callback);
+        }
+    }
+
+    fn traverse_types_mut<F: FnMut(&mut Type)>(&mut self, callback: &mut F) {
+        for variant in &mut self.variants {
+            variant.traverse_types_mut(callback);
+        }
+    }
 }
 
 impl Enum {

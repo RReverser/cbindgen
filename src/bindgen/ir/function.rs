@@ -9,7 +9,7 @@ use syn;
 use bindgen::cdecl;
 use bindgen::config::{Config, Language, Layout};
 use bindgen::dependencies::Dependencies;
-use bindgen::ir::{AnnotationSet, Cfg, CfgWrite, Documentation, PrimitiveType, Type};
+use bindgen::ir::{AnnotationSet, Cfg, CfgWrite, Documentation, PrimitiveType, TraverseTypes, Type};
 use bindgen::library::Library;
 use bindgen::monomorph::Monomorphs;
 use bindgen::rename::{IdentifierType, RenameRule};
@@ -25,6 +25,22 @@ pub struct Function {
     pub cfg: Option<Cfg>,
     pub annotations: AnnotationSet,
     pub documentation: Documentation,
+}
+
+impl TraverseTypes for Function {
+    fn traverse_types<F: Fn(&Type)>(&self, callback: &F) {
+        self.ret.traverse_types(callback);
+        for &(_, ref ty) in &self.args {
+            ty.traverse_types(callback);
+        }
+    }
+
+    fn traverse_types_mut<F: FnMut(&mut Type)>(&mut self, callback: &mut F) {
+        self.ret.traverse_types_mut(callback);
+        for &mut (_, ref mut ty) in &mut self.args {
+            ty.traverse_types_mut(callback);
+        }
+    }
 }
 
 impl Function {

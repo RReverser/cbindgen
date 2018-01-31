@@ -9,7 +9,7 @@ use syn;
 use bindgen::config::{Config, Language};
 use bindgen::dependencies::Dependencies;
 use bindgen::ir::{AnnotationSet, Cfg, CfgWrite, Documentation, GenericParams, Item, ItemContainer,
-                  Repr, Type};
+                  Repr, TraverseTypes, Type};
 use bindgen::ir::SynFieldHelpers;
 use bindgen::library::Library;
 use bindgen::mangle;
@@ -27,6 +27,20 @@ pub struct Union {
     pub cfg: Option<Cfg>,
     pub annotations: AnnotationSet,
     pub documentation: Documentation,
+}
+
+impl TraverseTypes for Union {
+    fn traverse_types<F: Fn(&Type)>(&self, callback: &F) {
+        for &(_, ref ty, _) in &self.fields {
+            ty.traverse_types(callback);
+        }
+    }
+
+    fn traverse_types_mut<F: FnMut(&mut Type)>(&mut self, callback: &mut F) {
+        for &mut (_, ref mut ty, _) in &mut self.fields {
+            ty.traverse_types_mut(callback);
+        }
+    }
 }
 
 impl Union {

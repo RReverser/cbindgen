@@ -8,7 +8,7 @@ use syn;
 
 use bindgen::config::Config;
 use bindgen::dependencies::Dependencies;
-use bindgen::ir::{AnnotationSet, Cfg, Documentation, Item, ItemContainer, Type};
+use bindgen::ir::{AnnotationSet, Cfg, Documentation, Item, ItemContainer, TraverseTypes, Type};
 use bindgen::library::Library;
 use bindgen::writer::{Source, SourceWriter};
 
@@ -42,6 +42,16 @@ impl Static {
 
     pub fn simplify_option_to_ptr(&mut self) {
         self.ty.simplify_option_to_ptr();
+    }
+}
+
+impl TraverseTypes for Static {
+    fn traverse_types<F: Fn(&Type)>(&self, callback: &F) {
+        self.ty.traverse_types(callback);
+    }
+
+    fn traverse_types_mut<F: FnMut(&mut Type)>(&mut self, callback: &mut F) {
+        self.ty.traverse_types_mut(callback);
     }
 }
 

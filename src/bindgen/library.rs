@@ -11,6 +11,7 @@ use bindgen::dependencies::Dependencies;
 use bindgen::error::Error;
 use bindgen::ir::{Constant, Enum, Function, Item, ItemContainer, ItemMap};
 use bindgen::ir::{OpaqueItem, Path, Static, Struct, Typedef, Union};
+use bindgen::ir::{TraverseTypes, Type};
 use bindgen::monomorph::Monomorphs;
 
 #[derive(Debug, Clone)]
@@ -24,6 +25,44 @@ pub struct Library {
     opaque_items: ItemMap<OpaqueItem>,
     typedefs: ItemMap<Typedef>,
     functions: Vec<Function>,
+}
+
+impl TraverseTypes for Library {
+    fn traverse_types<F: Fn(&Type)>(&self, callback: &F) {
+        self.structs.for_all_items(|x| {
+            x.traverse_types(callback);
+        });
+        self.unions.for_all_items(|x| {
+            x.traverse_types(callback);
+        });
+        self.globals.for_all_items(|x| {
+            x.traverse_types(callback);
+        });
+        self.typedefs.for_all_items(|x| {
+            x.traverse_types(callback);
+        });
+        for x in &self.functions {
+            x.traverse_types(callback);
+        }
+    }
+
+    fn traverse_types_mut<F: FnMut(&mut Type)>(&mut self, callback: &mut F) {
+        self.structs.for_all_items_mut(|x| {
+            x.traverse_types_mut(callback);
+        });
+        self.unions.for_all_items_mut(|x| {
+            x.traverse_types_mut(callback);
+        });
+        self.globals.for_all_items_mut(|x| {
+            x.traverse_types_mut(callback);
+        });
+        self.typedefs.for_all_items_mut(|x| {
+            x.traverse_types_mut(callback);
+        });
+        for x in &mut self.functions {
+            x.traverse_types_mut(callback);
+        }
+    }
 }
 
 impl Library {

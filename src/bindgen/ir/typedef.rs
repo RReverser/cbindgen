@@ -10,7 +10,7 @@ use syn;
 use bindgen::config::{Config, Language};
 use bindgen::dependencies::Dependencies;
 use bindgen::ir::{AnnotationSet, Cfg, CfgWrite, Documentation, GenericParams, Item, ItemContainer,
-                  Path, Type};
+                  Path, TraverseTypes, Type};
 use bindgen::library::Library;
 use bindgen::mangle;
 use bindgen::monomorph::Monomorphs;
@@ -25,6 +25,16 @@ pub struct Typedef {
     pub cfg: Option<Cfg>,
     pub annotations: AnnotationSet,
     pub documentation: Documentation,
+}
+
+impl TraverseTypes for Typedef {
+    fn traverse_types<F: Fn(&Type)>(&self, callback: &F) {
+        self.aliased.traverse_types(callback);
+    }
+
+    fn traverse_types_mut<F: FnMut(&mut Type)>(&mut self, callback: &mut F) {
+        self.aliased.traverse_types_mut(callback);
+    }
 }
 
 impl Typedef {
