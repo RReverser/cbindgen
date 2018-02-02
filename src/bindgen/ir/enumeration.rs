@@ -8,7 +8,7 @@ use syn;
 
 use bindgen::config::{Config, Language};
 use bindgen::ir::{AnnotationSet, Cfg, CfgWrite, Documentation, GenericParams, GenericPath, Item,
-                  ItemContainer, Repr, ReprStyle, ReprType, Struct, TraverseTypes, Type};
+                  Repr, ReprStyle, ReprType, Struct, TraverseTypes, Type};
 use bindgen::rename::{IdentifierType, RenameRule};
 use bindgen::utilities::find_first_some;
 use bindgen::writer::{Source, SourceWriter};
@@ -223,10 +223,6 @@ impl Item for Enum {
 
     fn annotations_mut(&mut self) -> &mut AnnotationSet {
         &mut self.annotations
-    }
-
-    fn container(&self) -> ItemContainer {
-        ItemContainer::Enum(self.clone())
     }
 
     fn rename_for_config(&mut self, config: &Config) {

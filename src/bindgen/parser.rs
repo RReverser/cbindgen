@@ -12,7 +12,7 @@ use syn;
 use bindgen::cargo::{Cargo, PackageRef};
 use bindgen::error::Error;
 use bindgen::ir::{AnnotationSet, Cfg, Constant, Documentation, Enum, Function};
-use bindgen::ir::{ItemMap, OpaqueItem, Static, Struct, Typedef, Union};
+use bindgen::ir::{ItemContainer, ItemMap, OpaqueItem, Static, Struct, Typedef, Union};
 use bindgen::utilities::{SynAbiHelpers, SynItemHelpers};
 
 const STD_CRATES: &'static [&'static str] = &[
@@ -377,11 +377,7 @@ impl Parser {
 pub struct Parse {
     pub constants: ItemMap<Constant>,
     pub globals: ItemMap<Static>,
-    pub enums: ItemMap<Enum>,
-    pub structs: ItemMap<Struct>,
-    pub unions: ItemMap<Union>,
-    pub opaque_items: ItemMap<OpaqueItem>,
-    pub typedefs: ItemMap<Typedef>,
+    pub types: ItemMap<ItemContainer>,
     pub functions: Vec<Function>,
 }
 
@@ -390,24 +386,22 @@ impl Parse {
         Parse {
             constants: ItemMap::new(),
             globals: ItemMap::new(),
-            enums: ItemMap::new(),
-            structs: ItemMap::new(),
-            unions: ItemMap::new(),
-            opaque_items: ItemMap::new(),
-            typedefs: ItemMap::new(),
+            types: ItemMap::new(),
             functions: Vec::new(),
         }
     }
 
     pub fn add_std_types(&mut self) {
         let mut add_opaque = |name: &str, generic_params: Vec<&str>| {
-            self.opaque_items.try_insert(OpaqueItem {
-                name: name.to_owned(),
-                generic_params: generic_params.iter().map(|x| (*x).to_owned()).collect(),
-                cfg: None,
-                annotations: AnnotationSet::new(),
-                documentation: Documentation::none(),
-            })
+            self.types.try_insert(
+                OpaqueItem {
+                    name: name.to_owned(),
+                    generic_params: generic_params.iter().map(|x| (*x).to_owned()).collect(),
+                    cfg: None,
+                    annotations: AnnotationSet::new(),
+                    documentation: Documentation::none(),
+                }.into(),
+            )
         };
 
         add_opaque("String", vec![]);
@@ -428,11 +422,7 @@ impl Parse {
     pub fn extend_with(&mut self, other: &Parse) {
         self.constants.extend_with(&other.constants);
         self.globals.extend_with(&other.globals);
-        self.enums.extend_with(&other.enums);
-        self.structs.extend_with(&other.structs);
-        self.unions.extend_with(&other.unions);
-        self.opaque_items.extend_with(&other.opaque_items);
-        self.typedefs.extend_with(&other.typedefs);
+        self.types.extend_with(&other.types);
         self.functions.extend_from_slice(&other.functions);
     }
 
@@ -657,16 +647,14 @@ impl Parse {
             Ok(st) => {
                 info!("Take {}::{}.", crate_name, &item.ident);
 
-                self.structs.try_insert(st);
+                self.types.try_insert(st.into());
             }
             Err(msg) => {
                 info!("Take {}::{} - opaque ({}).", crate_name, &item.ident, msg);
-                self.opaque_items.try_insert(OpaqueItem::new(
-                    item.ident.to_string(),
-                    &item.generics,
-                    &item.attrs,
-                    mod_cfg,
-                ));
+                self.types.try_insert(
+                    OpaqueItem::new(item.ident.to_string(), &item.generics, &item.attrs, mod_cfg)
+                        .into(),
+                );
             }
         }
     }
@@ -677,16 +665,14 @@ impl Parse {
             Ok(st) => {
                 info!("Take {}::{}.", crate_name, &item.ident);
 
-                self.unions.try_insert(st);
+                self.types.try_insert(st.into());
             }
             Err(msg) => {
                 info!("Take {}::{} - opaque ({}).", crate_name, &item.ident, msg);
-                self.opaque_items.try_insert(OpaqueItem::new(
-                    item.ident.to_string(),
-                    &item.generics,
-                    &item.attrs,
-                    mod_cfg,
-                ));
+                self.types.try_insert(
+                    OpaqueItem::new(item.ident.to_string(), &item.generics, &item.attrs, mod_cfg)
+                        .into(),
+                );
             }
         }
     }
@@ -704,16 +690,14 @@ impl Parse {
         match Enum::load(item, mod_cfg) {
             Ok(en) => {
                 info!("Take {}::{}.", crate_name, &item.ident);
-                self.enums.try_insert(en);
+                self.types.try_insert(en.into());
             }
             Err(msg) => {
                 info!("Take {}::{} - opaque ({}).", crate_name, &item.ident, msg);
-                self.opaque_items.try_insert(OpaqueItem::new(
-                    item.ident.to_string(),
-                    &item.generics,
-                    &item.attrs,
-                    mod_cfg,
-                ));
+                self.types.try_insert(
+                    OpaqueItem::new(item.ident.to_string(), &item.generics, &item.attrs, mod_cfg)
+                        .into(),
+                );
             }
         }
     }
@@ -724,16 +708,14 @@ impl Parse {
             Ok(st) => {
                 info!("Take {}::{}.", crate_name, &item.ident);
 
-                self.typedefs.try_insert(st);
+                self.types.try_insert(st.into());
             }
             Err(msg) => {
                 info!("Take {}::{} - opaque ({}).", crate_name, &item.ident, msg);
-                self.opaque_items.try_insert(OpaqueItem::new(
-                    item.ident.to_string(),
-                    &item.generics,
-                    &item.attrs,
-                    mod_cfg,
-                ));
+                self.types.try_insert(
+                    OpaqueItem::new(item.ident.to_string(), &item.generics, &item.attrs, mod_cfg)
+                        .into(),
+                );
             }
         }
     }

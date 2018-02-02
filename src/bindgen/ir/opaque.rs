@@ -7,8 +7,8 @@ use std::io::Write;
 use syn;
 
 use bindgen::config::{Config, Language};
-use bindgen::ir::{AnnotationSet, Cfg, CfgWrite, Documentation, GenericParams, Item, ItemContainer,
-                  Path, TraverseTypes, Type};
+use bindgen::ir::{AnnotationSet, Cfg, CfgWrite, Documentation, GenericParams, Item, Path,
+                  TraverseTypes, Type};
 use bindgen::library::Library;
 use bindgen::mangle;
 use bindgen::monomorph::Monomorphs;
@@ -67,10 +67,6 @@ impl Item for OpaqueItem {
         &self.generic_params
     }
 
-    fn container(&self) -> ItemContainer {
-        ItemContainer::OpaqueItem(self.clone())
-    }
-
     fn rename_for_config(&mut self, config: &Config) {
         config.export.rename(&mut self.name);
     }
@@ -91,7 +87,7 @@ impl Item for OpaqueItem {
             documentation: self.documentation.clone(),
         };
 
-        out.insert_opaque(self, monomorph, generic_values.clone());
+        out.insert(self, monomorph, generic_values.clone());
     }
 }
 

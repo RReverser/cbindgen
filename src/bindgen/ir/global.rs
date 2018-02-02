@@ -7,7 +7,7 @@ use std::io::Write;
 use syn;
 
 use bindgen::config::Config;
-use bindgen::ir::{AnnotationSet, Cfg, Documentation, Item, ItemContainer, TraverseTypes, Type};
+use bindgen::ir::{AnnotationSet, Cfg, Documentation, Item, TraverseTypes, Type};
 use bindgen::writer::{Source, SourceWriter};
 
 #[derive(Debug, Clone)]
@@ -64,10 +64,6 @@ impl Item for Static {
 
     fn annotations_mut(&mut self) -> &mut AnnotationSet {
         &mut self.annotations
-    }
-
-    fn container(&self) -> ItemContainer {
-        ItemContainer::Static(self.clone())
     }
 
     fn rename_for_config(&mut self, config: &Config) {

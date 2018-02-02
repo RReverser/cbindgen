@@ -15,7 +15,7 @@ use bindgen::monomorph::Monomorphs;
 use bindgen::writer::{Source, SourceWriter};
 
 /// An item is any type of rust item besides a function
-pub trait Item: Source + TraverseTypes {
+pub trait Item: Source + TraverseTypes + Clone + Into<ItemContainer> {
     fn name(&self) -> &str;
     fn cfg(&self) -> &Option<Cfg>;
     fn annotations(&self) -> &AnnotationSet;
@@ -29,7 +29,9 @@ pub trait Item: Source + TraverseTypes {
         !self.generic_params().is_empty()
     }
 
-    fn container(&self) -> ItemContainer;
+    fn container(&self) -> ItemContainer {
+        self.clone().into()
+    }
 
     fn rename_for_config(&mut self, _config: &Config) {}
 
@@ -56,6 +58,48 @@ pub enum ItemContainer {
     Union(Union),
     Enum(Enum),
     Typedef(Typedef),
+}
+
+impl From<Constant> for ItemContainer {
+    fn from(src: Constant) -> Self {
+        ItemContainer::Constant(src)
+    }
+}
+
+impl From<Static> for ItemContainer {
+    fn from(src: Static) -> Self {
+        ItemContainer::Static(src)
+    }
+}
+
+impl From<OpaqueItem> for ItemContainer {
+    fn from(src: OpaqueItem) -> Self {
+        ItemContainer::OpaqueItem(src)
+    }
+}
+
+impl From<Struct> for ItemContainer {
+    fn from(src: Struct) -> Self {
+        ItemContainer::Struct(src)
+    }
+}
+
+impl From<Union> for ItemContainer {
+    fn from(src: Union) -> Self {
+        ItemContainer::Union(src)
+    }
+}
+
+impl From<Enum> for ItemContainer {
+    fn from(src: Enum) -> Self {
+        ItemContainer::Enum(src)
+    }
+}
+
+impl From<Typedef> for ItemContainer {
+    fn from(src: Typedef) -> Self {
+        ItemContainer::Typedef(src)
+    }
 }
 
 macro_rules! item_container_exec {
@@ -131,7 +175,7 @@ impl Item for ItemContainer {
     }
 
     fn container(&self) -> ItemContainer {
-        item_container_exec!(self.container())
+        self.clone()
     }
 
     fn rename_for_config(&mut self, config: &Config) {
@@ -154,7 +198,7 @@ pub struct ItemMap<T: Item> {
     data: BTreeMap<String, ItemValue<T>>,
 }
 
-impl<T: Item + Clone> ItemMap<T> {
+impl<T: Item> ItemMap<T> {
     pub fn new() -> ItemMap<T> {
         ItemMap {
             data: BTreeMap::new(),

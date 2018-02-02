@@ -9,8 +9,7 @@ use bindgen::bindings::Bindings;
 use bindgen::config::{Config, Language};
 use bindgen::dependencies::Dependencies;
 use bindgen::error::Error;
-use bindgen::ir::{Constant, Enum, Function, GenericParams, Item, ItemContainer, ItemMap};
-use bindgen::ir::{OpaqueItem, Path, Static, Struct, Typedef, Union};
+use bindgen::ir::{Constant, Function, GenericParams, Item, ItemContainer, ItemMap, Path, Static};
 use bindgen::ir::{TraverseTypes, Type};
 use bindgen::monomorph::Monomorphs;
 
@@ -19,26 +18,16 @@ pub struct Library {
     config: Config,
     constants: ItemMap<Constant>,
     globals: ItemMap<Static>,
-    enums: ItemMap<Enum>,
-    structs: ItemMap<Struct>,
-    unions: ItemMap<Union>,
-    opaque_items: ItemMap<OpaqueItem>,
-    typedefs: ItemMap<Typedef>,
+    types: ItemMap<ItemContainer>,
     functions: Vec<Function>,
 }
 
 impl TraverseTypes for Library {
     fn traverse_types<F: FnMut(&Type)>(&self, callback: &mut F) {
-        self.structs.for_all_items(|x| {
-            x.traverse_types(callback);
-        });
-        self.unions.for_all_items(|x| {
+        self.types.for_all_items(|x| {
             x.traverse_types(callback);
         });
         self.globals.for_all_items(|x| {
-            x.traverse_types(callback);
-        });
-        self.typedefs.for_all_items(|x| {
             x.traverse_types(callback);
         });
         for x in &self.functions {
@@ -47,16 +36,10 @@ impl TraverseTypes for Library {
     }
 
     fn traverse_types_mut<F: FnMut(&mut Type)>(&mut self, callback: &mut F) {
-        self.structs.for_all_items_mut(|x| {
-            x.traverse_types_mut(callback);
-        });
-        self.unions.for_all_items_mut(|x| {
+        self.types.for_all_items_mut(|x| {
             x.traverse_types_mut(callback);
         });
         self.globals.for_all_items_mut(|x| {
-            x.traverse_types_mut(callback);
-        });
-        self.typedefs.for_all_items_mut(|x| {
             x.traverse_types_mut(callback);
         });
         for x in &mut self.functions {
@@ -70,22 +53,14 @@ impl Library {
         config: Config,
         constants: ItemMap<Constant>,
         globals: ItemMap<Static>,
-        enums: ItemMap<Enum>,
-        structs: ItemMap<Struct>,
-        unions: ItemMap<Union>,
-        opaque_items: ItemMap<OpaqueItem>,
-        typedefs: ItemMap<Typedef>,
+        types: ItemMap<ItemContainer>,
         functions: Vec<Function>,
     ) -> Library {
         Library {
             config: config,
             constants: constants,
             globals: globals,
-            enums: enums,
-            structs: structs,
-            unions: unions,
-            opaque_items: opaque_items,
-            typedefs: typedefs,
+            types: types,
             functions: functions,
         }
     }
@@ -147,39 +122,15 @@ impl Library {
     }
 
     pub fn get_items(&self, p: &Path) -> Option<Vec<ItemContainer>> {
-        if let Some(x) = self.enums.get_items(p) {
-            return Some(x);
-        }
-        if let Some(x) = self.structs.get_items(p) {
-            return Some(x);
-        }
-        if let Some(x) = self.unions.get_items(p) {
-            return Some(x);
-        }
-        if let Some(x) = self.opaque_items.get_items(p) {
-            return Some(x);
-        }
-        if let Some(x) = self.typedefs.get_items(p) {
-            return Some(x);
-        }
-
-        None
+        self.types.get_items(p)
     }
 
     fn remove_excluded(&mut self) {
         let config = &self.config;
         self.functions
             .retain(|x| !config.export.exclude.contains(&x.name));
-        self.enums
-            .filter(|x| config.export.exclude.contains(&x.name));
-        self.structs
-            .filter(|x| config.export.exclude.contains(&x.name));
-        self.unions
-            .filter(|x| config.export.exclude.contains(&x.name));
-        self.opaque_items
-            .filter(|x| config.export.exclude.contains(&x.name));
-        self.typedefs
-            .filter(|x| config.export.exclude.contains(&x.name));
+        self.types
+            .filter(|x| config.export.exclude.iter().any(|name| name == x.name()));
         self.globals
             .filter(|x| config.export.exclude.contains(&x.name));
         self.constants
@@ -189,18 +140,16 @@ impl Library {
     fn transfer_annotations(&mut self) {
         let mut annotations = HashMap::new();
 
-        self.typedefs.for_all_items_mut(|x| {
-            x.transfer_annotations(&mut annotations);
+        self.types.for_all_items_mut(|x| {
+            if let ItemContainer::Typedef(ref mut x) = *x {
+                x.transfer_annotations(&mut annotations);
+            }
         });
 
         for (alias_path, annotations) in annotations {
-            // TODO
-            let mut transferred = false;
-
-            self.enums.for_items_mut(&alias_path, |x| {
+            self.types.for_items_mut(&alias_path, |x| {
                 if x.annotations().is_empty() {
                     *x.annotations_mut() = annotations.clone();
-                    transferred = true;
                 } else {
                     warn!(
                         "Can't transfer annotations from typedef to alias ({}) \
@@ -209,69 +158,6 @@ impl Library {
                     );
                 }
             });
-            if transferred {
-                continue;
-            }
-            self.structs.for_items_mut(&alias_path, |x| {
-                if x.annotations().is_empty() {
-                    *x.annotations_mut() = annotations.clone();
-                    transferred = true;
-                } else {
-                    warn!(
-                        "Can't transfer annotations from typedef to alias ({}) \
-                         that already has annotations.",
-                        alias_path
-                    );
-                }
-            });
-            if transferred {
-                continue;
-            }
-            self.unions.for_items_mut(&alias_path, |x| {
-                if x.annotations().is_empty() {
-                    *x.annotations_mut() = annotations.clone();
-                    transferred = true;
-                } else {
-                    warn!(
-                        "Can't transfer annotations from typedef to alias ({}) \
-                         that already has annotations.",
-                        alias_path
-                    );
-                }
-            });
-            if transferred {
-                continue;
-            }
-            self.opaque_items.for_items_mut(&alias_path, |x| {
-                if x.annotations().is_empty() {
-                    *x.annotations_mut() = annotations.clone();
-                    transferred = true;
-                } else {
-                    warn!(
-                        "Can't transfer annotations from typedef to alias ({}) \
-                         that already has annotations.",
-                        alias_path
-                    );
-                }
-            });
-            if transferred {
-                continue;
-            }
-            self.typedefs.for_items_mut(&alias_path, |x| {
-                if x.annotations().is_empty() {
-                    *x.annotations_mut() = annotations.clone();
-                    transferred = true;
-                } else {
-                    warn!(
-                        "Can't transfer annotations from typedef to alias ({}) \
-                         that already has annotations.",
-                        alias_path
-                    );
-                }
-            });
-            if transferred {
-                continue;
-            }
         }
     }
 
@@ -286,25 +172,9 @@ impl Library {
             .for_all_items_mut(|x| x.rename_for_config(config));
         self.constants.rebuild();
 
-        self.structs
+        self.types
             .for_all_items_mut(|x| x.rename_for_config(config));
-        self.structs.rebuild();
-
-        self.unions
-            .for_all_items_mut(|x| x.rename_for_config(config));
-        self.unions.rebuild();
-
-        self.enums
-            .for_all_items_mut(|x| x.rename_for_config(config));
-        self.enums.rebuild();
-
-        self.opaque_items
-            .for_all_items_mut(|x| x.rename_for_config(config));
-        self.opaque_items.rebuild();
-
-        self.typedefs
-            .for_all_items_mut(|x| x.rename_for_config(config));
-        self.typedefs.rebuild();
+        self.types.rebuild();
 
         for item in &mut self.functions {
             item.rename_for_config(&self.config);
@@ -318,24 +188,12 @@ impl Library {
         self.add_monomorphs(self, &mut monomorphs);
 
         // Insert the monomorphs into self
-        for monomorph in monomorphs.drain_structs() {
-            self.structs.try_insert(monomorph);
-        }
-        for monomorph in monomorphs.drain_unions() {
-            self.unions.try_insert(monomorph);
-        }
-        for monomorph in monomorphs.drain_opaques() {
-            self.opaque_items.try_insert(monomorph);
-        }
-        for monomorph in monomorphs.drain_typedefs() {
-            self.typedefs.try_insert(monomorph);
+        for monomorph in monomorphs.drain() {
+            self.types.try_insert(monomorph);
         }
 
         // Remove structs and opaque items that are generic
-        self.opaque_items.filter(|x| x.generic_params.len() > 0);
-        self.structs.filter(|x| x.generic_params.len() > 0);
-        self.unions.filter(|x| x.generic_params.len() > 0);
-        self.typedefs.filter(|x| x.generic_params.len() > 0);
+        self.types.filter(|x| x.is_generic());
 
         // Mangle the paths that remain
         self.mangle_paths(&monomorphs);

@@ -7,8 +7,8 @@ use std::io::Write;
 use syn;
 
 use bindgen::config::{Config, Language};
-use bindgen::ir::{AnnotationSet, Cfg, CfgWrite, Documentation, GenericParams, Item, ItemContainer,
-                  Repr, TraverseTypes, Type};
+use bindgen::ir::{AnnotationSet, Cfg, CfgWrite, Documentation, GenericParams, Item, Repr,
+                  TraverseTypes, Type};
 use bindgen::library::Library;
 use bindgen::mangle;
 use bindgen::monomorph::Monomorphs;
@@ -113,10 +113,6 @@ impl Item for Struct {
         &self.generic_params
     }
 
-    fn container(&self) -> ItemContainer {
-        ItemContainer::Struct(self.clone())
-    }
-
     fn rename_for_config(&mut self, config: &Config) {
         config.export.rename(&mut self.name);
         for &mut (_, ref mut ty, _) in &mut self.fields {
@@ -182,7 +178,7 @@ impl Item for Struct {
         // Instantiate any monomorphs for any generic paths we may have just created.
         monomorph.add_monomorphs(library, out);
 
-        out.insert_struct(self, monomorph, generic_values.clone());
+        out.insert(self, monomorph, generic_values.clone());
     }
 }
 

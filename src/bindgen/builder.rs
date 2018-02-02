@@ -291,11 +291,7 @@ impl Builder {
             self.config,
             result.constants,
             result.globals,
-            result.enums,
-            result.structs,
-            result.unions,
-            result.opaque_items,
-            result.typedefs,
+            result.types,
             result.functions,
         ).generate()
     }
