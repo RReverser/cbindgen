@@ -26,7 +26,7 @@ impl Monomorphs {
 
         self.replacements
             .insert(replacement_path, monomorph.name().to_owned());
-        self.items.push(monomorph.container());
+        self.items.push(monomorph.into());
     }
 
     pub fn mangle_path(&self, path: &GenericPath) -> Option<&Path> {
