@@ -11,6 +11,7 @@ use bindgen::dependencies::Dependencies;
 use bindgen::ir::{AnnotationSet, Cfg, Constant, Enum, GenericParams, OpaqueItem, Static, Struct,
                   TraverseTypes, Type, Typedef, Union};
 use bindgen::library::Library;
+use bindgen::mangle;
 use bindgen::monomorph::Monomorphs;
 use bindgen::writer::{Source, SourceWriter};
 
@@ -39,13 +40,30 @@ pub trait Item: Source + TraverseTypes + Clone + Into<ItemContainer> {
         self.add_dependencies_ignoring_generics(self.generic_params(), library, out);
     }
 
+    fn mangle(&mut self, _new_name: String) {}
+
     fn instantiate_monomorph(
         &self,
-        _generics: &Vec<Type>,
-        _library: &Library,
-        _out: &mut Monomorphs,
+        generic_values: &[Type],
+        library: &Library,
+        out: &mut Monomorphs,
     ) {
-        unreachable!("Cannot instantiate {} as a generic.", self.name())
+        assert!(self.is_generic());
+        assert_eq!(self.generic_params().len(), generic_values.len());
+
+        let mappings = self.generic_params()
+            .iter()
+            .map(|s| s.as_ref())
+            .zip(generic_values.iter())
+            .collect::<Vec<_>>();
+
+        let mut monomorph = self.clone();
+        monomorph.mangle(mangle::mangle_path(self.name(), &generic_values));
+        monomorph.specialize(&mappings);
+
+        monomorph.add_monomorphs(library, out);
+
+        out.insert(self, monomorph, generic_values.to_owned());
     }
 }
 
@@ -182,7 +200,7 @@ impl Item for ItemContainer {
         item_container_exec!(mut self.rename_for_config(config))
     }
 
-    fn instantiate_monomorph(&self, generics: &Vec<Type>, library: &Library, out: &mut Monomorphs) {
+    fn instantiate_monomorph(&self, generics: &[Type], library: &Library, out: &mut Monomorphs) {
         item_container_exec!(self.instantiate_monomorph(generics, library, out))
     }
 }

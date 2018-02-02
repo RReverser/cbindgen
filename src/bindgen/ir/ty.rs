@@ -206,6 +206,12 @@ pub trait TraverseTypes {
     fn mangle_paths(&mut self, monomorphs: &Monomorphs) {
         self.traverse_types_mut(&mut |ty| ty.mangle_paths(monomorphs));
     }
+
+    fn specialize(&mut self, mappings: &[(&str, &Type)]) {
+        self.traverse_types_mut(&mut |ty| {
+            ty.specialize(mappings);
+        });
+    }
 }
 
 impl TraverseTypes for Type {
@@ -295,6 +301,42 @@ impl TraverseTypes for Type {
                 );
             }
         });
+    }
+
+    fn specialize(&mut self, mappings: &[(&str, &Type)]) {
+        let replace_with = match *self {
+            Type::Path(ref mut path) => {
+                if path.generics.is_empty() {
+                    mappings
+                        .iter()
+                        .find(|&&(param, _)| param == path.name)
+                        .map(|&(_, value)| value.clone())
+                } else {
+                    for generic in &mut path.generics {
+                        generic.specialize(mappings);
+                    }
+                    None
+                }
+            }
+            Type::Array(ref mut ty, _) | Type::ConstPtr(ref mut ty) | Type::Ptr(ref mut ty) => {
+                ty.specialize(mappings);
+                return;
+            }
+            Type::FuncPtr(ref mut ret, ref mut args) => {
+                ret.specialize(mappings);
+                for arg in args {
+                    arg.specialize(mappings);
+                }
+                return;
+            }
+            Type::Primitive(_) => {
+                return;
+            }
+        };
+
+        if let Some(replace_with) = replace_with {
+            *self = replace_with;
+        }
     }
 }
 
@@ -483,37 +525,6 @@ impl Type {
                     arg.traverse_paths_mut(callback);
                 }
             }
-        }
-    }
-
-    pub fn specialize(&self, mappings: &Vec<(&String, &Type)>) -> Type {
-        match self {
-            &Type::ConstPtr(ref ty) => Type::ConstPtr(Box::new(ty.specialize(mappings))),
-            &Type::Ptr(ref ty) => Type::Ptr(Box::new(ty.specialize(mappings))),
-            &Type::Path(ref path) => {
-                for &(param, value) in mappings {
-                    if *path.name == *param {
-                        return value.clone();
-                    }
-                }
-
-                let specialized = GenericPath::new(
-                    path.name.clone(),
-                    path.generics
-                        .iter()
-                        .map(|x| x.specialize(mappings))
-                        .collect(),
-                );
-                Type::Path(specialized)
-            }
-            &Type::Primitive(ref primitive) => Type::Primitive(primitive.clone()),
-            &Type::Array(ref ty, ref constant) => {
-                Type::Array(Box::new(ty.specialize(mappings)), constant.clone())
-            }
-            &Type::FuncPtr(ref ret, ref args) => Type::FuncPtr(
-                Box::new(ret.specialize(mappings)),
-                args.iter().map(|x| x.specialize(mappings)).collect(),
-            ),
         }
     }
 

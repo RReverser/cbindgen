@@ -9,9 +9,6 @@ use syn;
 use bindgen::config::{Config, Language};
 use bindgen::ir::{AnnotationSet, Cfg, CfgWrite, Documentation, GenericParams, Item, Path,
                   TraverseTypes, Type};
-use bindgen::library::Library;
-use bindgen::mangle;
-use bindgen::monomorph::Monomorphs;
 use bindgen::writer::{Source, SourceWriter};
 
 #[derive(Debug, Clone)]
@@ -71,23 +68,9 @@ impl Item for OpaqueItem {
         config.export.rename(&mut self.name);
     }
 
-    fn instantiate_monomorph(
-        &self,
-        generic_values: &Vec<Type>,
-        _library: &Library,
-        out: &mut Monomorphs,
-    ) {
-        assert!(self.generic_params.len() > 0 && self.generic_params.len() == generic_values.len());
-
-        let monomorph = OpaqueItem {
-            name: mangle::mangle_path(&self.name, generic_values),
-            generic_params: GenericParams::default(),
-            cfg: self.cfg.clone(),
-            annotations: self.annotations.clone(),
-            documentation: self.documentation.clone(),
-        };
-
-        out.insert(self, monomorph, generic_values.clone());
+    fn mangle(&mut self, new_name: String) {
+        self.name = new_name;
+        self.generic_params = GenericParams(None);
     }
 }
 

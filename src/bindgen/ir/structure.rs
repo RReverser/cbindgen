@@ -9,9 +9,6 @@ use syn;
 use bindgen::config::{Config, Language};
 use bindgen::ir::{AnnotationSet, Cfg, CfgWrite, Documentation, GenericParams, Item, Repr,
                   TraverseTypes, Type};
-use bindgen::library::Library;
-use bindgen::mangle;
-use bindgen::monomorph::Monomorphs;
 use bindgen::rename::{IdentifierType, RenameRule};
 use bindgen::utilities::{find_first_some, IterHelpers};
 use bindgen::writer::{ListType, Source, SourceWriter};
@@ -148,37 +145,9 @@ impl Item for Struct {
         }
     }
 
-    fn instantiate_monomorph(
-        &self,
-        generic_values: &Vec<Type>,
-        library: &Library,
-        out: &mut Monomorphs,
-    ) {
-        assert!(self.generic_params.len() > 0 && self.generic_params.len() == generic_values.len());
-
-        let mappings = self.generic_params
-            .iter()
-            .zip(generic_values.iter())
-            .collect::<Vec<_>>();
-
-        let monomorph = Struct {
-            name: mangle::mangle_path(&self.name, generic_values),
-            generic_params: GenericParams::default(),
-            fields: self.fields
-                .iter()
-                .map(|x| (x.0.clone(), x.1.specialize(&mappings), x.2.clone()))
-                .collect(),
-            is_tagged: self.is_tagged,
-            tuple_struct: self.tuple_struct,
-            cfg: self.cfg.clone(),
-            annotations: self.annotations.clone(),
-            documentation: self.documentation.clone(),
-        };
-
-        // Instantiate any monomorphs for any generic paths we may have just created.
-        monomorph.add_monomorphs(library, out);
-
-        out.insert(self, monomorph, generic_values.clone());
+    fn mangle(&mut self, new_name: String) {
+        self.name = new_name;
+        self.generic_params = GenericParams(None);
     }
 }
 
