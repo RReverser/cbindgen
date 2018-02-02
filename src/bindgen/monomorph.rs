@@ -18,11 +18,13 @@ impl Monomorphs {
         self.replacements.contains_key(path)
     }
 
-    pub fn insert<T: Item>(&mut self, generic: &T, monomorph: T, parameters: Vec<Type>) {
+    pub fn insert<T: Item>(&mut self, generic: &T, mut monomorph: T, parameters: Vec<Type>) {
         let replacement_path = GenericPath::new(generic.name().to_owned(), parameters);
 
         debug_assert!(!generic.generic_params().is_empty());
         debug_assert!(!self.contains(&replacement_path));
+
+        monomorph.set_generic_name(replacement_path.mangle());
 
         self.replacements
             .insert(replacement_path, monomorph.name().to_owned());

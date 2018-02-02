@@ -68,7 +68,7 @@ impl Item for OpaqueItem {
         config.export.rename(&mut self.name);
     }
 
-    fn mangle(&mut self, new_name: String) {
+    fn set_generic_name(&mut self, new_name: String) {
         self.name = new_name;
         self.generic_params = GenericParams(None);
     }

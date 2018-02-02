@@ -98,7 +98,7 @@ impl Item for Typedef {
         self.aliased.rename_for_config(config);
     }
 
-    fn mangle(&mut self, new_name: String) {
+    fn set_generic_name(&mut self, new_name: String) {
         self.name = new_name;
         self.generic_params = GenericParams(None);
     }
