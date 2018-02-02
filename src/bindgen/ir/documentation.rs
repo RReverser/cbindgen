@@ -9,7 +9,7 @@ use syn;
 use bindgen::config::{Config, Language};
 use bindgen::writer::{Source, SourceWriter};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Documentation {
     pub doc_comment: Vec<String>,
 }
@@ -56,9 +56,7 @@ impl Documentation {
     }
 
     pub fn none() -> Self {
-        Documentation {
-            doc_comment: Vec::new(),
-        }
+        Self::default()
     }
 }
 

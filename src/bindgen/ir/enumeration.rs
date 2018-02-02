@@ -7,8 +7,8 @@ use std::io::Write;
 use syn;
 
 use bindgen::config::{Config, Language};
-use bindgen::ir::{AnnotationSet, Cfg, CfgWrite, Documentation, GenericParams, GenericPath, Item,
-                  Repr, ReprStyle, ReprType, Struct, TraverseTypes, Type};
+use bindgen::ir::{Cfg, CfgWrite, Documentation, GenericParams, GenericPath, Item, Metadata, Repr,
+                  ReprStyle, ReprType, Struct, TraverseTypes, Type};
 use bindgen::rename::{IdentifierType, RenameRule};
 use bindgen::utilities::find_first_some;
 use bindgen::writer::{Source, SourceWriter};
@@ -96,9 +96,7 @@ impl EnumVariant {
                 fields: parse_fields(is_tagged, &fields.named)?,
                 is_tagged,
                 tuple_struct: false,
-                cfg: Cfg::append(mod_cfg, Cfg::load(&variant.attrs)),
-                annotations: AnnotationSet::load(&variant.attrs)?,
-                documentation: Documentation::none(),
+                meta: Metadata::load(&variant.attrs, mod_cfg)?,
             }),
             syn::Fields::Unnamed(ref fields) => Some(Struct {
                 name: format!("{}_Body", variant.ident),
@@ -106,9 +104,7 @@ impl EnumVariant {
                 fields: parse_fields(is_tagged, &fields.unnamed)?,
                 is_tagged,
                 tuple_struct: true,
-                cfg: Cfg::append(mod_cfg, Cfg::load(&variant.attrs)),
-                annotations: AnnotationSet::load(&variant.attrs)?,
-                documentation: Documentation::none(),
+                meta: Metadata::load(&variant.attrs, mod_cfg)?,
             }),
         };
 
@@ -144,9 +140,7 @@ pub struct Enum {
     pub repr: Repr,
     pub variants: Vec<EnumVariant>,
     pub tag: Option<String>,
-    pub cfg: Option<Cfg>,
-    pub annotations: AnnotationSet,
-    pub documentation: Documentation,
+    pub meta: Metadata,
 }
 
 impl TraverseTypes for Enum {
@@ -179,9 +173,9 @@ impl Enum {
             variants.push(variant);
         }
 
-        let annotations = AnnotationSet::load(&item.attrs)?;
+        let meta = Metadata::load(&item.attrs, mod_cfg)?;
 
-        if let Some(names) = annotations.list("enum-trailing-values") {
+        if let Some(names) = meta.annotations.list("enum-trailing-values") {
             for name in names {
                 variants.push(EnumVariant {
                     name,
@@ -201,9 +195,7 @@ impl Enum {
             } else {
                 None
             },
-            cfg: Cfg::append(mod_cfg, Cfg::load(&item.attrs)),
-            annotations,
-            documentation: Documentation::load(&item.attrs),
+            meta,
         })
     }
 }
@@ -213,16 +205,12 @@ impl Item for Enum {
         &self.name
     }
 
-    fn cfg(&self) -> &Option<Cfg> {
-        &self.cfg
+    fn meta(&self) -> &Metadata {
+        &self.meta
     }
 
-    fn annotations(&self) -> &AnnotationSet {
-        &self.annotations
-    }
-
-    fn annotations_mut(&mut self) -> &mut AnnotationSet {
-        &mut self.annotations
+    fn meta_mut(&mut self) -> &mut Metadata {
+        &mut self.meta
     }
 
     fn rename_for_config(&mut self, config: &Config) {
@@ -251,7 +239,10 @@ impl Item for Enum {
         }
 
         if config.enumeration.prefix_with_name
-            || self.annotations.bool("prefix-with-name").unwrap_or(false)
+            || self.meta
+                .annotations
+                .bool("prefix-with-name")
+                .unwrap_or(false)
         {
             for variant in &mut self.variants {
                 variant.name = format!("{}_{}", self.name, variant.name);
@@ -262,7 +253,7 @@ impl Item for Enum {
         }
 
         let rules = [
-            self.annotations.parse_atom::<RenameRule>("rename-all"),
+            self.meta.annotations.parse_atom::<RenameRule>("rename-all"),
             config.enumeration.rename_variants,
         ];
 
@@ -298,9 +289,7 @@ impl Source for Enum {
             ReprType::I8 => "int8_t",
         });
 
-        self.cfg.write_before(config, out);
-
-        self.documentation.write(config, out);
+        self.meta.write_before(config, out);
 
         let is_tagged = self.tag.is_some();
         let separate_tag = self.repr.style == ReprStyle::C;
@@ -337,7 +326,7 @@ impl Source for Enum {
             }
             variant.write(config, out);
         }
-        if config.enumeration.add_sentinel(&self.annotations) {
+        if config.enumeration.add_sentinel(&self.meta.annotations) {
             out.new_line();
             out.new_line();
             out.write("Sentinel /* this must be last for serialization purposes. */");
@@ -424,6 +413,6 @@ impl Source for Enum {
             }
         }
 
-        self.cfg.write_after(config, out);
+        self.meta.write_after(config, out);
     }
 }

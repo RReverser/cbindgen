@@ -7,17 +7,15 @@ use std::io::Write;
 use syn;
 
 use bindgen::config::{Config, Language};
-use bindgen::ir::{AnnotationSet, Cfg, CfgWrite, Documentation, GenericParams, Item, Path,
-                  TraverseTypes, Type};
+use bindgen::ir::{AnnotationSet, Cfg, CfgWrite, Documentation, GenericParams, Item, Metadata,
+                  Path, TraverseTypes, Type};
 use bindgen::writer::{Source, SourceWriter};
 
 #[derive(Debug, Clone)]
 pub struct OpaqueItem {
     pub name: Path,
     pub generic_params: GenericParams,
-    pub cfg: Option<Cfg>,
-    pub annotations: AnnotationSet,
-    pub documentation: Documentation,
+    pub meta: Metadata,
 }
 
 impl TraverseTypes for OpaqueItem {
@@ -30,15 +28,17 @@ impl OpaqueItem {
     pub fn new(
         name: String,
         generics: &syn::Generics,
-        attrs: &Vec<syn::Attribute>,
+        attrs: &[syn::Attribute],
         mod_cfg: &Option<Cfg>,
     ) -> OpaqueItem {
         OpaqueItem {
             name: name,
             generic_params: GenericParams::new(generics),
-            cfg: Cfg::append(mod_cfg, Cfg::load(attrs)),
-            annotations: AnnotationSet::load(attrs).unwrap_or(AnnotationSet::new()),
-            documentation: Documentation::load(attrs),
+            meta: Metadata {
+                cfg: Cfg::append(mod_cfg, Cfg::load(attrs)),
+                annotations: AnnotationSet::load(attrs).unwrap_or(AnnotationSet::new()),
+                documentation: Documentation::load(attrs),
+            },
         }
     }
 }
@@ -48,16 +48,12 @@ impl Item for OpaqueItem {
         &self.name
     }
 
-    fn cfg(&self) -> &Option<Cfg> {
-        &self.cfg
+    fn meta(&self) -> &Metadata {
+        &self.meta
     }
 
-    fn annotations(&self) -> &AnnotationSet {
-        &self.annotations
-    }
-
-    fn annotations_mut(&mut self) -> &mut AnnotationSet {
-        &mut self.annotations
+    fn meta_mut(&mut self) -> &mut Metadata {
+        &mut self.meta
     }
 
     fn generic_params(&self) -> &GenericParams {
@@ -76,9 +72,7 @@ impl Item for OpaqueItem {
 
 impl Source for OpaqueItem {
     fn write<F: Write>(&self, config: &Config, out: &mut SourceWriter<F>) {
-        self.cfg.write_before(config, out);
-
-        self.documentation.write(config, out);
+        self.meta.write_before(config, out);
 
         self.generic_params.write(config, out);
 
@@ -88,6 +82,6 @@ impl Source for OpaqueItem {
             write!(out, "struct {};", self.name);
         }
 
-        self.cfg.write_after(config, out);
+        self.meta.write_after(config, out);
     }
 }

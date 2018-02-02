@@ -8,7 +8,7 @@ use std::mem;
 
 use bindgen::config::Config;
 use bindgen::dependencies::Dependencies;
-use bindgen::ir::{AnnotationSet, Cfg, Constant, Enum, GenericParams, OpaqueItem, Static, Struct,
+use bindgen::ir::{Constant, Enum, GenericParams, Metadata, OpaqueItem, Static, Struct,
                   TraverseTypes, Type, Typedef, Union};
 use bindgen::library::Library;
 use bindgen::monomorph::Monomorphs;
@@ -17,9 +17,8 @@ use bindgen::writer::{Source, SourceWriter};
 /// An item is any type of rust item besides a function
 pub trait Item: Source + TraverseTypes + Clone + Into<ItemContainer> {
     fn name(&self) -> &str;
-    fn cfg(&self) -> &Option<Cfg>;
-    fn annotations(&self) -> &AnnotationSet;
-    fn annotations_mut(&mut self) -> &mut AnnotationSet;
+    fn meta(&self) -> &Metadata;
+    fn meta_mut(&mut self) -> &mut Metadata;
 
     fn generic_params(&self) -> &GenericParams {
         &GenericParams(None)
@@ -173,16 +172,12 @@ impl Item for ItemContainer {
         item_container_exec!(self.name())
     }
 
-    fn cfg(&self) -> &Option<Cfg> {
-        item_container_exec!(self.cfg())
+    fn meta(&self) -> &Metadata {
+        item_container_exec!(self.meta())
     }
 
-    fn annotations(&self) -> &AnnotationSet {
-        item_container_exec!(self.annotations())
-    }
-
-    fn annotations_mut(&mut self) -> &mut AnnotationSet {
-        item_container_exec!(mut self.annotations_mut())
+    fn meta_mut(&mut self) -> &mut Metadata {
+        item_container_exec!(mut self.meta_mut())
     }
 
     fn generic_params(&self) -> &GenericParams {
@@ -232,7 +227,7 @@ impl<T: Item> ItemMap<T> {
     }
 
     pub fn try_insert(&mut self, item: T) -> bool {
-        match (item.cfg().is_some(), self.data.get_mut(item.name())) {
+        match (item.meta().cfg.is_some(), self.data.get_mut(item.name())) {
             (true, Some(&mut ItemValue::Cfg(ref mut items))) => {
                 items.push(item);
                 return true;
@@ -249,7 +244,7 @@ impl<T: Item> ItemMap<T> {
             _ => {}
         }
 
-        if item.cfg().is_some() {
+        if item.meta().cfg.is_some() {
             self.data
                 .insert(item.name().to_owned(), ItemValue::Cfg(vec![item]));
         } else {

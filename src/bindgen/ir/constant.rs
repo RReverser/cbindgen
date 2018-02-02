@@ -8,7 +8,7 @@ use std::mem;
 use syn;
 
 use bindgen::config::{Config, Language};
-use bindgen::ir::{AnnotationSet, Cfg, Documentation, Item, TraverseTypes, Type};
+use bindgen::ir::{Cfg, Item, Metadata, TraverseTypes, Type};
 use bindgen::writer::{Source, SourceWriter};
 
 #[derive(Debug, Clone)]
@@ -70,9 +70,7 @@ pub struct Constant {
     pub name: String,
     pub ty: Type,
     pub value: LiteralExpr,
-    pub cfg: Option<Cfg>,
-    pub annotations: AnnotationSet,
-    pub documentation: Documentation,
+    pub meta: Metadata,
 }
 
 impl TraverseTypes for Constant {
@@ -107,9 +105,7 @@ impl Constant {
             name: name,
             ty: ty,
             value: LiteralExpr::load(&item.expr)?,
-            cfg: Cfg::append(mod_cfg, Cfg::load(&item.attrs)),
-            annotations: AnnotationSet::load(&item.attrs)?,
-            documentation: Documentation::load(&item.attrs),
+            meta: Metadata::load(&item.attrs, mod_cfg)?,
         })
     }
 }
@@ -119,16 +115,12 @@ impl Item for Constant {
         &self.name
     }
 
-    fn cfg(&self) -> &Option<Cfg> {
-        &self.cfg
+    fn meta(&self) -> &Metadata {
+        &self.meta
     }
 
-    fn annotations(&self) -> &AnnotationSet {
-        &self.annotations
-    }
-
-    fn annotations_mut(&mut self) -> &mut AnnotationSet {
-        &mut self.annotations
+    fn meta_mut(&mut self) -> &mut Metadata {
+        &mut self.meta
     }
 
     fn rename_for_config(&mut self, config: &Config) {

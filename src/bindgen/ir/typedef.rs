@@ -8,7 +8,7 @@ use std::io::Write;
 use syn;
 
 use bindgen::config::{Config, Language};
-use bindgen::ir::{AnnotationSet, Cfg, CfgWrite, Documentation, GenericParams, Item, Path,
+use bindgen::ir::{AnnotationSet, Cfg, CfgWrite, GenericParams, Item, Metadata, Path,
                   TraverseTypes, Type};
 use bindgen::writer::{Source, SourceWriter};
 
@@ -18,9 +18,7 @@ pub struct Typedef {
     pub name: String,
     pub generic_params: GenericParams,
     pub aliased: Type,
-    pub cfg: Option<Cfg>,
-    pub annotations: AnnotationSet,
-    pub documentation: Documentation,
+    pub meta: Metadata,
 }
 
 impl TraverseTypes for Typedef {
@@ -40,9 +38,7 @@ impl Typedef {
                 name: item.ident.to_string(),
                 generic_params: GenericParams::new(&item.generics),
                 aliased: x,
-                cfg: Cfg::append(mod_cfg, Cfg::load(&item.attrs)),
-                annotations: AnnotationSet::load(&item.attrs)?,
-                documentation: Documentation::load(&item.attrs),
+                meta: Metadata::load(&item.attrs, mod_cfg)?,
             })
         } else {
             Err("Cannot have a typedef of a zero sized type.".to_owned())
@@ -50,7 +46,7 @@ impl Typedef {
     }
 
     pub fn transfer_annotations(&mut self, out: &mut HashMap<Path, AnnotationSet>) {
-        if self.annotations.is_empty() {
+        if self.meta.annotations.is_empty() {
             return;
         }
 
@@ -64,8 +60,8 @@ impl Typedef {
                     return;
                 }
 
-                out.insert(alias_path, self.annotations.clone());
-                self.annotations = AnnotationSet::new();
+                out.insert(alias_path, self.meta.annotations.clone());
+                self.meta.annotations = AnnotationSet::new();
             }
             None => {}
         }
@@ -77,16 +73,12 @@ impl Item for Typedef {
         &self.name
     }
 
-    fn cfg(&self) -> &Option<Cfg> {
-        &self.cfg
+    fn meta(&self) -> &Metadata {
+        &self.meta
     }
 
-    fn annotations(&self) -> &AnnotationSet {
-        &self.annotations
-    }
-
-    fn annotations_mut(&mut self) -> &mut AnnotationSet {
-        &mut self.annotations
+    fn meta_mut(&mut self) -> &mut Metadata {
+        &mut self.meta
     }
 
     fn generic_params(&self) -> &GenericParams {
@@ -106,9 +98,7 @@ impl Item for Typedef {
 
 impl Source for Typedef {
     fn write<F: Write>(&self, config: &Config, out: &mut SourceWriter<F>) {
-        self.cfg.write_before(config, out);
-
-        self.documentation.write(config, out);
+        self.meta.write_before(config, out);
 
         self.generic_params.write(config, out);
 
@@ -121,6 +111,6 @@ impl Source for Typedef {
         }
         out.write(";");
 
-        self.cfg.write_after(config, out);
+        self.meta.write_after(config, out);
     }
 }

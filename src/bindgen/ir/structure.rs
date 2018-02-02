@@ -7,7 +7,7 @@ use std::io::Write;
 use syn;
 
 use bindgen::config::{Config, Language};
-use bindgen::ir::{AnnotationSet, Cfg, CfgWrite, Documentation, GenericParams, Item, Repr,
+use bindgen::ir::{Cfg, CfgWrite, Documentation, GenericParams, Item, Metadata, Repr,
                   TraverseTypes, Type};
 use bindgen::rename::{IdentifierType, RenameRule};
 use bindgen::utilities::{find_first_some, IterHelpers};
@@ -20,9 +20,7 @@ pub struct Struct {
     pub fields: Vec<(String, Type, Documentation)>,
     pub is_tagged: bool,
     pub tuple_struct: bool,
-    pub cfg: Option<Cfg>,
-    pub annotations: AnnotationSet,
-    pub documentation: Documentation,
+    pub meta: Metadata,
 }
 
 impl TraverseTypes for Struct {
@@ -82,9 +80,7 @@ impl Struct {
             fields: fields,
             is_tagged: false,
             tuple_struct: tuple_struct,
-            cfg: Cfg::append(mod_cfg, Cfg::load(&item.attrs)),
-            annotations: AnnotationSet::load(&item.attrs)?,
-            documentation: Documentation::load(&item.attrs),
+            meta: Metadata::load(&item.attrs, mod_cfg)?,
         })
     }
 }
@@ -94,16 +90,12 @@ impl Item for Struct {
         &self.name
     }
 
-    fn cfg(&self) -> &Option<Cfg> {
-        &self.cfg
+    fn meta(&self) -> &Metadata {
+        &self.meta
     }
 
-    fn annotations(&self) -> &AnnotationSet {
-        &self.annotations
-    }
-
-    fn annotations_mut(&mut self) -> &mut AnnotationSet {
-        &mut self.annotations
+    fn meta_mut(&mut self) -> &mut Metadata {
+        &mut self.meta
     }
 
     fn generic_params(&self) -> &GenericParams {
@@ -117,13 +109,13 @@ impl Item for Struct {
         }
 
         let field_rules = [
-            self.annotations.parse_atom::<RenameRule>("rename-all"),
+            self.meta.annotations.parse_atom::<RenameRule>("rename-all"),
             config.structure.rename_fields,
         ];
 
         let mut names = self.fields.iter_mut().map(|field| &mut field.0);
 
-        if let Some(o) = self.annotations.list("field-names") {
+        if let Some(o) = self.meta.annotations.list("field-names") {
             for (dest, src) in names.zip(o) {
                 *dest = src;
             }
@@ -153,9 +145,7 @@ impl Item for Struct {
 
 impl Source for Struct {
     fn write<F: Write>(&self, config: &Config, out: &mut SourceWriter<F>) {
-        self.cfg.write_before(config, out);
-
-        self.documentation.write(config, out);
+        self.meta.write_before(config, out);
 
         self.generic_params.write(config, out);
 
@@ -181,7 +171,9 @@ impl Source for Struct {
         if config.language == Language::Cxx {
             let mut wrote_start_newline = false;
 
-            if config.structure.derive_constructor(&self.annotations) && !self.fields.is_empty() {
+            if config.structure.derive_constructor(&self.meta.annotations)
+                && !self.fields.is_empty()
+            {
                 if !wrote_start_newline {
                     wrote_start_newline = true;
                     out.new_line();
@@ -255,32 +247,32 @@ impl Source for Struct {
                 out.close_brace(false);
             };
 
-            if config.structure.derive_eq(&self.annotations) && !self.fields.is_empty()
+            if config.structure.derive_eq(&self.meta.annotations) && !self.fields.is_empty()
                 && self.fields.iter().all(|x| x.1.can_cmp_eq())
             {
                 emit_op("==", "&&");
             }
-            if config.structure.derive_neq(&self.annotations) && !self.fields.is_empty()
+            if config.structure.derive_neq(&self.meta.annotations) && !self.fields.is_empty()
                 && self.fields.iter().all(|x| x.1.can_cmp_eq())
             {
                 emit_op("!=", "||");
             }
-            if config.structure.derive_lt(&self.annotations) && self.fields.len() == 1
+            if config.structure.derive_lt(&self.meta.annotations) && self.fields.len() == 1
                 && self.fields[0].1.can_cmp_order()
             {
                 emit_op("<", "&&");
             }
-            if config.structure.derive_lte(&self.annotations) && self.fields.len() == 1
+            if config.structure.derive_lte(&self.meta.annotations) && self.fields.len() == 1
                 && self.fields[0].1.can_cmp_order()
             {
                 emit_op("<=", "&&");
             }
-            if config.structure.derive_gt(&self.annotations) && self.fields.len() == 1
+            if config.structure.derive_gt(&self.meta.annotations) && self.fields.len() == 1
                 && self.fields[0].1.can_cmp_order()
             {
                 emit_op(">", "&&");
             }
-            if config.structure.derive_gte(&self.annotations) && self.fields.len() == 1
+            if config.structure.derive_gte(&self.meta.annotations) && self.fields.len() == 1
                 && self.fields[0].1.can_cmp_order()
             {
                 emit_op(">=", "&&");
@@ -294,7 +286,7 @@ impl Source for Struct {
             out.close_brace(true);
         }
 
-        self.cfg.write_after(config, out);
+        self.meta.write_after(config, out);
     }
 }
 

@@ -111,7 +111,7 @@ impl Bindings {
         }
 
         for item in &self.items {
-            if item.annotations().bool("no-export").unwrap_or(false) {
+            if item.meta().annotations.bool("no-export").unwrap_or(false) {
                 continue;
             }
 

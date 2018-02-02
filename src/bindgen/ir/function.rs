@@ -8,7 +8,7 @@ use syn;
 
 use bindgen::cdecl;
 use bindgen::config::{Config, Language, Layout};
-use bindgen::ir::{AnnotationSet, Cfg, CfgWrite, Documentation, PrimitiveType, TraverseTypes, Type};
+use bindgen::ir::{Cfg, CfgWrite, Metadata, PrimitiveType, TraverseTypes, Type};
 use bindgen::rename::{IdentifierType, RenameRule};
 use bindgen::utilities::{find_first_some, IterHelpers};
 use bindgen::writer::{Source, SourceWriter};
@@ -19,9 +19,7 @@ pub struct Function {
     pub ret: Type,
     pub args: Vec<(String, Type)>,
     pub extern_decl: bool,
-    pub cfg: Option<Cfg>,
-    pub annotations: AnnotationSet,
-    pub documentation: Documentation,
+    pub meta: Metadata,
 }
 
 impl TraverseTypes for Function {
@@ -65,9 +63,7 @@ impl Function {
             ret: ret,
             args: args,
             extern_decl: extern_decl,
-            cfg: Cfg::append(mod_cfg, Cfg::load(attrs)),
-            annotations: AnnotationSet::load(attrs)?,
-            documentation: Documentation::load(attrs),
+            meta: Metadata::load(attrs, mod_cfg)?,
         })
     }
 
@@ -78,7 +74,7 @@ impl Function {
         }
 
         let rules = [
-            self.annotations.parse_atom::<RenameRule>("rename-all"),
+            self.meta.annotations.parse_atom::<RenameRule>("rename-all"),
             config.function.rename_args,
         ];
 
@@ -100,12 +96,10 @@ impl Source for Function {
     fn write<F: Write>(&self, config: &Config, out: &mut SourceWriter<F>) {
         fn write_1<W: Write>(func: &Function, config: &Config, out: &mut SourceWriter<W>) {
             let void_prototype = config.language == Language::C;
-            let prefix = config.function.prefix(&func.annotations);
-            let postfix = config.function.postfix(&func.annotations);
+            let prefix = config.function.prefix(&func.meta.annotations);
+            let postfix = config.function.postfix(&func.meta.annotations);
 
-            func.cfg.write_before(config, out);
-
-            func.documentation.write(config, out);
+            func.meta.write_before(config, out);
 
             if func.extern_decl {
                 out.write("extern ");
@@ -124,17 +118,15 @@ impl Source for Function {
             }
             out.write(";");
 
-            func.cfg.write_after(config, out);
+            func.meta.write_after(config, out);
         }
 
         fn write_2<W: Write>(func: &Function, config: &Config, out: &mut SourceWriter<W>) {
             let void_prototype = config.language == Language::C;
-            let prefix = config.function.prefix(&func.annotations);
-            let postfix = config.function.postfix(&func.annotations);
+            let prefix = config.function.prefix(&func.meta.annotations);
+            let postfix = config.function.postfix(&func.meta.annotations);
 
-            func.cfg.write_before(config, out);
-
-            func.documentation.write(config, out);
+            func.meta.write_before(config, out);
 
             if func.extern_decl {
                 out.write("extern ");
@@ -153,7 +145,7 @@ impl Source for Function {
             }
             out.write(";");
 
-            func.cfg.write_after(config, out);
+            func.meta.write_after(config, out);
         };
 
         let option_1 = out.measure(|out| write_1(self, config, out));

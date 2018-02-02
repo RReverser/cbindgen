@@ -29,16 +29,14 @@ pub enum AnnotationValue {
 }
 
 /// A set of annotations specified by a document comment.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct AnnotationSet {
     annotations: HashMap<String, AnnotationValue>,
 }
 
 impl AnnotationSet {
     pub fn new() -> AnnotationSet {
-        AnnotationSet {
-            annotations: HashMap::new(),
-        }
+        Self::default()
     }
 
     pub fn is_empty(&self) -> bool {

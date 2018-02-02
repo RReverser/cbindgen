@@ -7,7 +7,7 @@ use std::io::Write;
 use syn;
 
 use bindgen::config::{Config, Language};
-use bindgen::ir::{AnnotationSet, Cfg, CfgWrite, Documentation, GenericParams, Item, Repr,
+use bindgen::ir::{Cfg, CfgWrite, Documentation, GenericParams, Item, Metadata, Repr,
                   TraverseTypes, Type};
 use bindgen::ir::SynFieldHelpers;
 use bindgen::rename::{IdentifierType, RenameRule};
@@ -20,9 +20,7 @@ pub struct Union {
     pub generic_params: GenericParams,
     pub fields: Vec<(String, Type, Documentation)>,
     pub tuple_union: bool,
-    pub cfg: Option<Cfg>,
-    pub annotations: AnnotationSet,
-    pub documentation: Documentation,
+    pub meta: Metadata,
 }
 
 impl TraverseTypes for Union {
@@ -58,9 +56,7 @@ impl Union {
             generic_params: GenericParams::new(&item.generics),
             fields: fields,
             tuple_union: tuple_union,
-            cfg: Cfg::append(mod_cfg, Cfg::load(&item.attrs)),
-            annotations: AnnotationSet::load(&item.attrs)?,
-            documentation: Documentation::load(&item.attrs),
+            meta: Metadata::load(&item.attrs, mod_cfg)?,
         })
     }
 }
@@ -70,16 +66,12 @@ impl Item for Union {
         &self.name
     }
 
-    fn cfg(&self) -> &Option<Cfg> {
-        &self.cfg
+    fn meta(&self) -> &Metadata {
+        &self.meta
     }
 
-    fn annotations(&self) -> &AnnotationSet {
-        &self.annotations
-    }
-
-    fn annotations_mut(&mut self) -> &mut AnnotationSet {
-        &mut self.annotations
+    fn meta_mut(&mut self) -> &mut Metadata {
+        &mut self.meta
     }
 
     fn generic_params(&self) -> &GenericParams {
@@ -93,11 +85,11 @@ impl Item for Union {
         }
 
         let rules = [
-            self.annotations.parse_atom::<RenameRule>("rename-all"),
+            self.meta.annotations.parse_atom::<RenameRule>("rename-all"),
             config.structure.rename_fields,
         ];
 
-        if let Some(o) = self.annotations.list("field-names") {
+        if let Some(o) = self.meta.annotations.list("field-names") {
             let mut overriden_fields = Vec::new();
 
             for (i, &(ref name, ref ty, ref doc)) in self.fields.iter().enumerate() {
@@ -137,9 +129,7 @@ impl Item for Union {
 
 impl Source for Union {
     fn write<F: Write>(&self, config: &Config, out: &mut SourceWriter<F>) {
-        self.cfg.write_before(config, out);
-
-        self.documentation.write(config, out);
+        self.meta.write_before(config, out);
 
         self.generic_params.write(config, out);
 
@@ -169,6 +159,6 @@ impl Source for Union {
             out.close_brace(true);
         }
 
-        self.cfg.write_after(config, out);
+        self.meta.write_after(config, out);
     }
 }

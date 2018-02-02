@@ -11,7 +11,7 @@ use syn;
 
 use bindgen::cargo::{Cargo, PackageRef};
 use bindgen::error::Error;
-use bindgen::ir::{AnnotationSet, Cfg, Constant, Documentation, Enum, Function};
+use bindgen::ir::{Cfg, Constant, Enum, Function, Metadata};
 use bindgen::ir::{ItemContainer, ItemMap, OpaqueItem, Static, Struct, Typedef, Union};
 use bindgen::utilities::{SynAbiHelpers, SynItemHelpers};
 
@@ -397,9 +397,7 @@ impl Parse {
                 OpaqueItem {
                     name: name.to_owned(),
                     generic_params: generic_params.iter().map(|x| (*x).to_owned()).collect(),
-                    cfg: None,
-                    annotations: AnnotationSet::new(),
-                    documentation: Documentation::none(),
+                    meta: Metadata::default(),
                 }.into(),
             )
         };

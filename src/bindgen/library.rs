@@ -148,8 +148,9 @@ impl Library {
 
         for (alias_path, annotations) in annotations {
             self.types.for_items_mut(&alias_path, |x| {
-                if x.annotations().is_empty() {
-                    *x.annotations_mut() = annotations.clone();
+                let x_annotations = &mut x.meta_mut().annotations;
+                if x_annotations.is_empty() {
+                    *x_annotations = annotations.clone();
                 } else {
                     warn!(
                         "Can't transfer annotations from typedef to alias ({}) \
